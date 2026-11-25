@@ -13,7 +13,12 @@ import { createDefaultPage, createDefaultProject } from "@/constants/defaults";
 import { translate, type I18nKey } from "@/constants/i18n";
 import { LANG_STORAGE_KEY, LS_STORAGE_KEY } from "@/constants/theme";
 import { cascadeShiftRows } from "@/engine/dependency";
-import { saveCloudProject } from "@/lib/authClient";
+import {
+  authClient,
+  listCloudProjects,
+  loadCloudProject,
+  saveCloudProject,
+} from "@/lib/authClient";
 import type {
   DepType,
   LangCode,
@@ -78,7 +83,13 @@ interface TimelineContextValue {
 
 const TimelineContext = createContext<TimelineContextValue | null>(null);
 
+const userProjKey = (uid: string) => `tlb.proj.v1.${uid}`;
+const userCloudIdKey = (uid: string) => `tlb.cloudId.v1.${uid}`;
+
 export function TimelineProvider({ children }: { children: React.ReactNode }) {
+  const { data: session, isPending: sessionPending } = authClient.useSession();
+  const userId = session?.user?.id || null;
+
   const [lang, setLangState] = useState<LangCode>("id");
   const [project, setProject] = useState<ProjectData>(() =>
     createDefaultProject("id")
@@ -91,14 +102,14 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<ModalKind>(null);
   const [cloudProjectId, setCloudProjectId] = useState<string | null>(null);
-  const [hydrated, setHydrated] = useState(false);
+  const [hydratedForUser, setHydratedForUser] = useState<string | null>(null);
 
   const openModal = useCallback((m: Exclude<ModalKind, null>) => setActiveModal(m), []);
   const closeModal = useCallback(() => setActiveModal(null), []);
 
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Hydrate from localStorage on client asynchronously to avoid cascading effect render
+  // Hydrate language once on mount & clear legacy shared key
   useEffect(() => {
     const id = setTimeout(() => {
       try {
@@ -106,30 +117,89 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
         if (savedLang === "en" || savedLang === "id") {
           setLangState(savedLang);
         }
-
-        const raw = localStorage.getItem(LS_STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as ProjectData;
-          if (parsed && Array.isArray(parsed.pages) && parsed.pages.length > 0) {
-            setProject(parsed);
-          }
-        }
+        localStorage.removeItem(LS_STORAGE_KEY);
       } catch {
-        // Ignore malformed draft
-      } finally {
-        setHydrated(true);
+        // Ignore
       }
     }, 0);
     return () => clearTimeout(id);
   }, []);
 
-  // Debounced autosave (localStorage + cloud sync if active)
+  // Load isolated per-user workspace whenever authenticated userId changes
   useEffect(() => {
-    if (!hydrated) return;
+    if (sessionPending) return;
+    let cancelled = false;
+
+    const loadUserWorkspace = async () => {
+      setPast([]);
+      setFuture([]);
+
+      if (!userId) {
+        setProject(createDefaultProject(lang));
+        setCloudProjectId(null);
+        setHydratedForUser(null);
+        return;
+      }
+
+      try {
+        const savedCid = localStorage.getItem(userCloudIdKey(userId));
+        const raw = localStorage.getItem(userProjKey(userId));
+        if (raw) {
+          const parsed = JSON.parse(raw) as ProjectData;
+          if (parsed && Array.isArray(parsed.pages) && parsed.pages.length > 0) {
+            if (!cancelled) {
+              setProject(parsed);
+              setCloudProjectId(savedCid || null);
+              setHydratedForUser(userId);
+            }
+            return;
+          }
+        }
+
+        // No local draft for this user: check their cloud projects in D1
+        const cloudList = await listCloudProjects();
+        if (!cancelled && cloudList.length > 0) {
+          const latest = await loadCloudProject(cloudList[0].id);
+          if (!cancelled && latest?.data?.pages?.length > 0) {
+            setProject(latest.data);
+            setCloudProjectId(latest.id);
+            setHydratedForUser(userId);
+            return;
+          }
+        }
+      } catch {
+        // Fallback to fresh empty default project
+      }
+
+      if (!cancelled) {
+        setProject(createDefaultProject(lang));
+        setCloudProjectId(null);
+        setHydratedForUser(userId);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      void loadUserWorkspace();
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [userId, sessionPending, lang]);
+
+  // Debounced autosave scoped strictly to the active userId
+  useEffect(() => {
+    if (!userId || hydratedForUser !== userId) return;
     const timer = setTimeout(async () => {
       setSaveState("saving");
       try {
-        localStorage.setItem(LS_STORAGE_KEY, JSON.stringify(project));
+        localStorage.setItem(userProjKey(userId), JSON.stringify(project));
+        if (cloudProjectId) {
+          localStorage.setItem(userCloudIdKey(userId), cloudProjectId);
+        } else {
+          localStorage.removeItem(userCloudIdKey(userId));
+        }
       } catch {
         // Ignore quota errors
       }
@@ -143,7 +213,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       setSaveState("saved");
     }, 350);
     return () => clearTimeout(timer);
-  }, [project, hydrated, cloudProjectId]);
+  }, [project, userId, hydratedForUser, cloudProjectId]);
 
   const setLang = useCallback((next: LangCode) => {
     setLangState(next);
