@@ -3,7 +3,9 @@
 import React, { useEffect } from "react";
 import { AppBar } from "@/components/AppBar";
 import { IconSprite } from "@/components/IconSprite";
+import { AuthModal } from "@/components/Modals/AuthModal";
 import { BulkPasteModal } from "@/components/Modals/BulkPasteModal";
+import { CloudProjectsModal } from "@/components/Modals/CloudProjectsModal";
 import { ExportModal } from "@/components/Modals/ExportModal";
 import { HelpModal } from "@/components/Modals/HelpModal";
 import { PlanWizardModal } from "@/components/Modals/PlanWizardModal";
@@ -90,6 +92,8 @@ function WorkspaceShell() {
       <ExportModal />
       <PresentationMode />
       <HelpModal />
+      <AuthModal />
+      <CloudProjectsModal />
       {notice && (
         <div
           role="status"

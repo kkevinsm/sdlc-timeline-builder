@@ -13,6 +13,7 @@ import { createDefaultPage, createDefaultProject } from "@/constants/defaults";
 import { translate, type I18nKey } from "@/constants/i18n";
 import { LANG_STORAGE_KEY, LS_STORAGE_KEY } from "@/constants/theme";
 import { cascadeShiftRows } from "@/engine/dependency";
+import { saveCloudProject } from "@/lib/authClient";
 import type {
   DepType,
   LangCode,
@@ -25,11 +26,13 @@ import type {
 
 const MAX_HISTORY = 60;
 
-export type ModalKind = "paste" | "plan" | "export" | "present" | "help" | null;
+export type ModalKind = "paste" | "plan" | "export" | "present" | "help" | "auth" | "cloud" | null;
 
 interface TimelineContextValue {
   project: ProjectData;
   activePage: PageData;
+  cloudProjectId: string | null;
+  setCloudProjectId: (id: string | null) => void;
   lang: LangCode;
   sidebarTab: SidebarTab;
   sidebarCollapsed: boolean;
@@ -87,6 +90,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
   const [future, setFuture] = useState<ProjectData[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<ModalKind>(null);
+  const [cloudProjectId, setCloudProjectId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
   const openModal = useCallback((m: Exclude<ModalKind, null>) => setActiveModal(m), []);
@@ -119,20 +123,27 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(id);
   }, []);
 
-  // Debounced autosave
+  // Debounced autosave (localStorage + cloud sync if active)
   useEffect(() => {
     if (!hydrated) return;
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       setSaveState("saving");
       try {
         localStorage.setItem(LS_STORAGE_KEY, JSON.stringify(project));
       } catch {
         // Ignore quota errors
       }
+      if (cloudProjectId) {
+        try {
+          await saveCloudProject(cloudProjectId, project);
+        } catch {
+          // Keep local draft safe if offline/expired
+        }
+      }
       setSaveState("saved");
-    }, 260);
+    }, 350);
     return () => clearTimeout(timer);
-  }, [project, hydrated]);
+  }, [project, hydrated, cloudProjectId]);
 
   const setLang = useCallback((next: LangCode) => {
     setLangState(next);
@@ -520,6 +531,8 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
     () => ({
       project,
       activePage,
+      cloudProjectId,
+      setCloudProjectId,
       lang,
       sidebarTab,
       sidebarCollapsed,
@@ -562,6 +575,8 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
     [
       project,
       activePage,
+      cloudProjectId,
+      setCloudProjectId,
       lang,
       sidebarTab,
       sidebarCollapsed,

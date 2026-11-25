@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { Icon } from "@/components/IconSprite";
+import { authClient } from "@/lib/authClient";
 import { useTimeline } from "@/store/useTimelineStore";
 import type { ProjectData } from "@/types/timeline";
 
@@ -20,9 +21,14 @@ export function AppBar() {
     openModal,
     resetProject,
     loadProject,
+    cloudProjectId,
+    setCloudProjectId,
     t,
     showNotice,
   } = useTimeline();
+
+  const { data: session } = authClient.useSession();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const barRef = useRef<HTMLElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -183,16 +189,30 @@ export function AppBar() {
 
       <div className="ab-spacer" />
 
-      <div
-        className="save-state"
+      <button
+        type="button"
+        className="save-state cursor-pointer hover:text-white"
         id="save-state"
         title={t("ui.saved.title")}
         role="status"
         aria-live="polite"
+        onClick={() => openModal(session?.user ? "cloud" : "auth")}
       >
-        <Icon name="cloud-off" size="sm" />
-        <span>{saveState === "saving" ? t("ui.saving") : t("ui.saved")}</span>
-      </div>
+        <Icon name={session?.user ? "cloud-check" : "cloud-off"} size="sm" />
+        <span>
+          {saveState === "saving"
+            ? t("ui.saving")
+            : session?.user
+              ? cloudProjectId
+                ? lang === "en"
+                  ? "Synced to cloud"
+                  : "Tersimpan di cloud"
+                : lang === "en"
+                  ? "Save to cloud"
+                  : "Simpan ke cloud"
+              : t("ui.saved")}
+        </span>
+      </button>
 
       <div className="ab-group" role="group" aria-label="History and Help">
         <button
@@ -268,6 +288,65 @@ export function AppBar() {
           EN
         </button>
       </div>
+
+      {session?.user ? (
+        <div className="relative ml-1">
+          <button
+            type="button"
+            className="w-[34px] h-[34px] rounded-full bg-white text-[var(--brand-700)] font-extrabold text-[13px] grid place-items-center shadow ring-2 ring-white/30 hover:ring-white/60"
+            aria-expanded={menuOpen}
+            aria-label="Account menu"
+            onClick={() => setMenuOpen((o) => !o)}
+          >
+            {(session.user.name || session.user.email || "U")[0].toUpperCase()}
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-[calc(100%+8px)] w-64 bg-white text-[var(--ink)] rounded-2xl shadow-2xl border border-[var(--line)] p-2 z-[90]">
+              <div className="px-2.5 py-2 border-b border-[var(--line-2)]">
+                <div className="font-extrabold text-[13px] truncate">
+                  {session.user.name || "User"}
+                </div>
+                <div className="text-[11.5px] text-[var(--muted)] truncate">
+                  {session.user.email}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[13px] font-semibold hover:bg-[var(--brand-50)] hover:text-[var(--brand-700)] mt-1"
+                onClick={() => {
+                  setMenuOpen(false);
+                  openModal("cloud");
+                }}
+              >
+                <Icon name="cloud-check" size="sm" />
+                <span>{lang === "en" ? "Cloud Projects" : "Proyek Cloud"}</span>
+              </button>
+              <button
+                type="button"
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[13px] font-semibold text-[#C62828] hover:bg-[#FDECEC]"
+                onClick={async () => {
+                  setMenuOpen(false);
+                  await authClient.signOut();
+                  setCloudProjectId(null);
+                  showNotice(lang === "en" ? "Signed out." : "Berhasil keluar.");
+                }}
+              >
+                <Icon name="logout" size="sm" />
+                <span>{lang === "en" ? "Sign out" : "Keluar"}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="abtn light ml-1"
+          onClick={() => openModal("auth")}
+        >
+          <Icon name="user" size="sm" />
+          <span>{lang === "en" ? "Sign in" : "Masuk"}</span>
+        </button>
+      )}
     </header>
   );
 }
