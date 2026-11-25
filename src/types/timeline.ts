@@ -12,6 +12,8 @@ export type SlideStyleId = "standar" | "simple" | "it" | "release" | "management
 
 export type SidebarTab = "slide" | "months" | "rows" | "cal";
 
+export type ColumnKey = "task" | "owner" | "duration" | "status";
+
 export interface DependencyRef {
   id: string;
   type: DepType;
@@ -30,6 +32,8 @@ export interface TaskBar {
   status: StatusKey;
   statusLocked?: boolean;
   statusText?: string;
+  durationLabel?: string;
+  progressText?: string;
   ms?: boolean;
 }
 
@@ -38,6 +42,7 @@ export interface TimelineRow {
   type: "group" | "task";
   name: string;
   collapsed?: boolean;
+  durationLabel?: string;
   owner?: string;
   bar?: TaskBar;
   deps?: DependencyRef[];
@@ -97,6 +102,7 @@ export interface PageData {
   msRail: boolean;
   dateMode: DateMode;
   style?: SlideStyleId;
+  colOrder?: ColumnKey[];
   workDays: number[];
   months: MonthConfig[];
   rows: TimelineRow[];
