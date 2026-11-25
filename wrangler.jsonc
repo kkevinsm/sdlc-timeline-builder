@@ -3,6 +3,17 @@
   "name": "sdlc-timeline-builder",
   "main": "src/worker.ts",
   "compatibility_date": "2025-11-01",
+  "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "tlb.web.id",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.tlb.web.id",
+      "custom_domain": true
+    }
+  ],
   "assets": {
     "directory": "./out",
     "binding": "ASSETS",
