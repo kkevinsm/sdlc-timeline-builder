@@ -1,9 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "sdlc-timeline-builder",
+  "main": "src/worker.ts",
   "compatibility_date": "2025-11-01",
   "assets": {
     "directory": "./out",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application"
-  }
+  },
+  "kv_namespaces": [
+    {
+      "binding": "SDLC_TIMELINE_STORAGE",
+      "id": "e1718b679f5f4135a19b96263aacc82a"
+    }
+  ]
 }
