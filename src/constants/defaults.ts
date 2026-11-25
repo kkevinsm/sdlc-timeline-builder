@@ -22,7 +22,21 @@ export function weekOfDate(d: Date): number {
   return 5;
 }
 
-export function createDefaultMonths(baseDate = new Date(), count = 6): MonthConfig[] {
+export function nowUTC7(): Date {
+  const now = new Date();
+  const utc7Ms = now.getTime() + (now.getTimezoneOffset() + 7 * 60) * 60_000;
+  return new Date(utc7Ms);
+}
+
+export function todayISO_UTC7(): string {
+  const d = nowUTC7();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function createDefaultMonths(baseDate = nowUTC7(), count = 6): MonthConfig[] {
   const list: MonthConfig[] = [];
   for (let i = 0; i < count; i++) {
     const dt = new Date(baseDate.getFullYear(), baseDate.getMonth() + i, 1);
@@ -45,7 +59,7 @@ export function createDefaultPage(
   lang: LangCode = "id",
   name?: string
 ): PageData {
-  const now = new Date();
+  const now = nowUTC7();
   return {
     id,
     name: name || (id === 1 ? translate(lang, "pg.page1") : `${lang === "en" ? "Page" : "Halaman"} ${id}`),
@@ -62,7 +76,7 @@ export function createDefaultPage(
     cm: MONTH_NAMES_ID[now.getMonth()],
     cw: weekOfDate(now),
     cy: now.getFullYear(),
-    today: "",
+    today: todayISO_UTC7(),
     year: now.getFullYear(),
     ...SIZE_DEF,
     autoStatus: true,

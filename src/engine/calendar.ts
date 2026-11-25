@@ -1,3 +1,4 @@
+import { translate, type I18nKey } from "@/constants/i18n";
 import {
   MONTH_NAMES_EN,
   MONTH_NAMES_ID,
@@ -321,7 +322,10 @@ export function getColumns(
             year: yr,
             kind: mode,
             label: mode === "day" ? String(d) : e > d ? `${d}–${e}` : String(d),
-            subLabel: mode === "day" ? undefined : undefined,
+            subLabel:
+              mode === "day"
+                ? translate(lang, `wd.${ds.getDay()}` as I18nKey)
+                : undefined,
             ds,
             de,
             days: e - d + 1,

@@ -9,9 +9,15 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { createDefaultPage, createDefaultProject } from "@/constants/defaults";
+import {
+  createDefaultPage,
+  createDefaultProject,
+  nowUTC7,
+  todayISO_UTC7,
+  weekOfDate,
+} from "@/constants/defaults";
 import { translate, type I18nKey } from "@/constants/i18n";
-import { LANG_STORAGE_KEY, LS_STORAGE_KEY } from "@/constants/theme";
+import { LANG_STORAGE_KEY, LS_STORAGE_KEY, MONTH_NAMES_ID } from "@/constants/theme";
 import { cascadeShiftRows } from "@/engine/dependency";
 import type {
   DepType,
@@ -62,7 +68,10 @@ interface TimelineContextValue {
   addDependency: (taskId: string, predId: string, type: DepType) => void;
   removeDependency: (taskId: string, predId: string) => void;
   deleteRow: (id: string) => void;
+  duplicateRow: (id: string) => void;
+  addTaskAfter: (afterId: string) => void;
   moveRow: (id: string, dir: -1 | 1) => void;
+  reorderRow: (fromId: string, toId: string) => void;
   toggleGroupCollapse: (id: string) => void;
   expandAllGroups: () => void;
   collapseAllGroups: () => void;
@@ -98,8 +107,10 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const id = setTimeout(() => {
       try {
+        let resolvedLang: LangCode = "id";
         const savedLang = localStorage.getItem(LANG_STORAGE_KEY);
         if (savedLang === "en" || savedLang === "id") {
+          resolvedLang = savedLang;
           setLangState(savedLang);
         }
 
@@ -107,8 +118,28 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
         if (raw) {
           const parsed = JSON.parse(raw) as ProjectData;
           if (parsed && Array.isArray(parsed.pages) && parsed.pages.length > 0) {
-            setProject(parsed);
+            const now = nowUTC7();
+            const todayIso = todayISO_UTC7();
+            const curMonth = MONTH_NAMES_ID[now.getMonth()];
+            const curWeek = weekOfDate(now);
+            const curYear = now.getFullYear();
+            const syncedPages = parsed.pages.map((p) =>
+              p.today
+                ? p
+                : {
+                    ...p,
+                    today: todayIso,
+                    cm: curMonth,
+                    cw: curWeek,
+                    cy: curYear,
+                  }
+            );
+            setProject({ ...parsed, pages: syncedPages });
+          } else {
+            setProject(createDefaultProject(resolvedLang));
           }
+        } else {
+          setProject(createDefaultProject(resolvedLang));
         }
       } catch {
         // Ignore malformed draft
@@ -435,6 +466,65 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
     [updateActivePage]
   );
 
+  const duplicateRow = useCallback(
+    (id: string) => {
+      updateActivePage((prev) => {
+        const idx = prev.rows.findIndex((r) => r.id === id);
+        if (idx === -1) return prev;
+        const src = prev.rows[idx];
+        const copy: TimelineRow = {
+          ...src,
+          id: `${src.type === "group" ? "grp" : "tsk"}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          name: `${src.name} (copy)`,
+          bar: src.bar ? { ...src.bar } : undefined,
+          deps: src.deps ? src.deps.map((d) => ({ ...d })) : undefined,
+        };
+        const next = [...prev.rows];
+        next.splice(idx + 1, 0, copy);
+        return { ...prev, rows: next };
+      }, true);
+    },
+    [updateActivePage]
+  );
+
+  const addTaskAfter = useCallback(
+    (afterId: string) => {
+      updateActivePage((prev) => {
+        const idx = prev.rows.findIndex((r) => r.id === afterId);
+        const count = prev.rows.filter((r) => r.type === "task").length + 1;
+        const firstMonth = prev.months[0];
+        const startMonth = prev.cm || firstMonth?.name || "Januari";
+        const startYear = prev.cy || firstMonth?.year || prev.year;
+        const startWeek = prev.cw || 1;
+        const newTask: TimelineRow = {
+          id: `tsk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          type: "task",
+          name: `Task ${count}`,
+          owner: "",
+          bar: {
+            startMonth,
+            startWeek,
+            startYear,
+            endMonth: startMonth,
+            endWeek: startWeek,
+            endYear: startYear,
+            progress: 0,
+            status: "notstarted",
+          },
+          deps: [],
+        };
+        const next = [...prev.rows];
+        if (idx === -1) {
+          next.push(newTask);
+        } else {
+          next.splice(idx + 1, 0, newTask);
+        }
+        return { ...prev, rows: next };
+      }, true);
+    },
+    [updateActivePage]
+  );
+
   const moveRow = useCallback(
     (id: string, dir: -1 | 1) => {
       updateActivePage((prev) => {
@@ -445,6 +535,22 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
         const next = [...prev.rows];
         const [item] = next.splice(idx, 1);
         next.splice(target, 0, item);
+        return { ...prev, rows: next };
+      }, true);
+    },
+    [updateActivePage]
+  );
+
+  const reorderRow = useCallback(
+    (fromId: string, toId: string) => {
+      if (fromId === toId) return;
+      updateActivePage((prev) => {
+        const fromIdx = prev.rows.findIndex((r) => r.id === fromId);
+        const toIdx = prev.rows.findIndex((r) => r.id === toId);
+        if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev;
+        const next = [...prev.rows];
+        const [item] = next.splice(fromIdx, 1);
+        next.splice(toIdx, 0, item);
         return { ...prev, rows: next };
       }, true);
     },
@@ -549,7 +655,10 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       addDependency,
       removeDependency,
       deleteRow,
+      duplicateRow,
+      addTaskAfter,
       moveRow,
+      reorderRow,
       toggleGroupCollapse,
       expandAllGroups,
       collapseAllGroups,
@@ -591,7 +700,10 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       addDependency,
       removeDependency,
       deleteRow,
+      duplicateRow,
+      addTaskAfter,
       moveRow,
+      reorderRow,
       toggleGroupCollapse,
       expandAllGroups,
       collapseAllGroups,

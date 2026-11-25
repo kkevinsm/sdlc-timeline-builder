@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react";
 import { Icon } from "@/components/IconSprite";
+import { todayISO_UTC7 } from "@/constants/defaults";
 import {
   ACCENTS,
   BADGES,
@@ -12,11 +13,7 @@ import {
 import { useTimeline } from "@/store/useTimelineStore";
 
 function formatLocalTodayISO() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return todayISO_UTC7();
 }
 
 export function SlidePanel() {
@@ -118,19 +115,29 @@ export function SlidePanel() {
                 <button
                   key={hex}
                   type="button"
-                  className={`sw${activePage.tgtc.toUpperCase() === hex ? " on" : ""}`}
+                  className={`sw${(activePage.tgtc || "#1B7A3E").toUpperCase() === hex ? " on" : ""}`}
                   style={{ background: hex }}
                   aria-label={`Badge color ${hex}`}
                   onClick={() => updateActivePage({ tgtc: hex })}
                 />
               ))}
-              <label className="sw-custom" title="Custom color">
-                <input
-                  type="color"
-                  value={activePage.tgtc}
-                  onChange={(e) => updateActivePage({ tgtc: e.target.value })}
-                />
-              </label>
+              {(() => {
+                const cur = (activePage.tgtc || "#1B7A3E").toUpperCase();
+                const isCustom = !BADGES.includes(cur as (typeof BADGES)[number]);
+                return (
+                  <label
+                    className={`sw-custom${isCustom ? " on" : ""}`}
+                    style={isCustom ? { background: activePage.tgtc } : undefined}
+                    title="Custom color"
+                  >
+                    <input
+                      type="color"
+                      value={activePage.tgtc || "#1B7A3E"}
+                      onChange={(e) => updateActivePage({ tgtc: e.target.value })}
+                    />
+                  </label>
+                );
+              })()}
             </div>
           </div>
         </div>
