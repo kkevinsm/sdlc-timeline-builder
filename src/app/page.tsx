@@ -2,7 +2,7 @@
 
 import React, { useEffect } from "react";
 import { AppBar } from "@/components/AppBar";
-import { IconSprite } from "@/components/IconSprite";
+import { Icon, IconSprite } from "@/components/IconSprite";
 import { AuthModal } from "@/components/Modals/AuthModal";
 import { BulkPasteModal } from "@/components/Modals/BulkPasteModal";
 import { CloudProjectsModal } from "@/components/Modals/CloudProjectsModal";
@@ -13,11 +13,14 @@ import { PageTabs } from "@/components/PageTabs";
 import { PresentationMode } from "@/components/PresentationMode";
 import { Sidebar } from "@/components/Sidebar/Sidebar";
 import { Stage } from "@/components/Stage";
+import { authClient } from "@/lib/authClient";
 import { TimelineProvider, useTimeline } from "@/store/useTimelineStore";
 
 function WorkspaceShell() {
+  const { data: session, isPending } = authClient.useSession();
   const {
     notice,
+    lang,
     activeModal,
     openModal,
     closeModal,
@@ -29,6 +32,7 @@ function WorkspaceShell() {
   } = useTimeline();
 
   useEffect(() => {
+    if (!session?.user) return;
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const isInput =
@@ -76,7 +80,30 @@ function WorkspaceShell() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeModal, addGroup, addTask, closeModal, openModal, redo, toggleSidebar, undo]);
+  }, [session?.user, activeModal, addGroup, addTask, closeModal, openModal, redo, toggleSidebar, undo]);
+
+  if (isPending) {
+    return (
+      <>
+        <IconSprite />
+        <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 bg-[linear-gradient(135deg,#07331A,#0B4622_55%,#15733A)] text-white">
+          <Icon name="brand" className="w-12 h-12 animate-pulse" />
+          <span className="text-[13px] font-semibold text-white/80">
+            {lang === "en" ? "Checking session..." : "Memeriksa sesi..."}
+          </span>
+        </div>
+      </>
+    );
+  }
+
+  if (!session?.user) {
+    return (
+      <>
+        <IconSprite />
+        <AuthModal blocking />
+      </>
+    );
+  }
 
   return (
     <>

@@ -5,8 +5,8 @@ import { Icon } from "@/components/IconSprite";
 import { authClient, fetchHealthStatus } from "@/lib/authClient";
 import { useTimeline } from "@/store/useTimelineStore";
 
-export function AuthModal() {
-  const { activeModal, closeModal, lang, showNotice } = useTimeline();
+export function AuthModal({ blocking = false }: { blocking?: boolean }) {
+  const { activeModal, closeModal, lang, setLang, showNotice } = useTimeline();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -16,11 +16,11 @@ export function AuthModal() {
   const [googleEnabled, setGoogleEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (activeModal !== "auth") return;
+    if (!blocking && activeModal !== "auth") return;
     fetchHealthStatus().then((h) => setGoogleEnabled(h.googleEnabled));
-  }, [activeModal]);
+  }, [activeModal, blocking]);
 
-  if (activeModal !== "auth") return null;
+  if (!blocking && activeModal !== "auth") return null;
 
   const handleGoogleSignIn = async () => {
     if (googleEnabled === false) {
@@ -94,8 +94,12 @@ export function AuthModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[2000] bg-[#09140E]/45 backdrop-blur-[3px] flex items-center justify-center p-5"
-      onClick={closeModal}
+      className={`fixed inset-0 z-[2000] flex items-center justify-center p-5 ${
+        blocking
+          ? "bg-[radial-gradient(900px_300px_at_20%_-10%,rgba(52,184,106,0.22),transparent_60%),linear-gradient(135deg,#07331A,#0B4622_55%,#15733A)]"
+          : "bg-[#09140E]/45 backdrop-blur-[3px]"
+      }`}
+      onClick={blocking ? undefined : closeModal}
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-dlg-title"
@@ -104,14 +108,41 @@ export function AuthModal() {
         className="bg-white rounded-[20px] shadow-2xl w-full max-w-[410px] max-h-[calc(100vh-40px)] flex flex-col overflow-hidden relative"
         onClick={(e) => e.stopPropagation()}
       >
-        <button
-          type="button"
-          className="ibtn absolute top-3 right-3 z-10 bg-white/80 hover:bg-white rounded-full"
-          aria-label="Close"
-          onClick={closeModal}
-        >
-          <Icon name="x" />
-        </button>
+        {!blocking ? (
+          <button
+            type="button"
+            className="ibtn absolute top-3 right-3 z-10 bg-white/80 hover:bg-white rounded-full"
+            aria-label="Close"
+            onClick={closeModal}
+          >
+            <Icon name="x" />
+          </button>
+        ) : (
+          <div className="absolute top-3 right-3 z-10 inline-flex bg-white/85 rounded-lg p-0.5 border border-[var(--line)]">
+            <button
+              type="button"
+              onClick={() => setLang("id")}
+              className={`px-2 py-0.5 text-[11px] font-bold rounded-md ${
+                lang === "id"
+                  ? "bg-[var(--brand-700)] text-white"
+                  : "text-[var(--ink-2)]"
+              }`}
+            >
+              ID
+            </button>
+            <button
+              type="button"
+              onClick={() => setLang("en")}
+              className={`px-2 py-0.5 text-[11px] font-bold rounded-md ${
+                lang === "en"
+                  ? "bg-[var(--brand-700)] text-white"
+                  : "text-[var(--ink-2)]"
+              }`}
+            >
+              EN
+            </button>
+          </div>
+        )}
 
         {/* Top Hero */}
         <div
