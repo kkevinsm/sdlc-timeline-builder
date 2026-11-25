@@ -92,13 +92,13 @@ export function AppBar() {
       aria-label="Timeline Builder Pro actions"
       onKeyDown={handleToolbarKeyDown}
     >
-      <div className="brand" title="Timeline Builder Pro — Mo Labs">
+      <div className="brand" title="Timeline Builder Pro — WakeLabs">
         <Icon name="brand" className="brand-mark" />
         <div className="brand-text">
           <b>
             Timeline Builder <span className="pro">Pro</span>
           </b>
-          <small>by Mo Labs</small>
+          <small>by WakeLabs</small>
         </div>
       </div>
 

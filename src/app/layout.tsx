@@ -8,7 +8,7 @@ import "@fontsource/plus-jakarta-sans/800.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Timeline Builder Pro — Mo Labs",
+  title: "Timeline Builder Pro — WakeLabs",
   description:
     "Susun timeline proyek yang rapi dan export langsung ke PowerPoint editable dengan native shapes.",
 };
