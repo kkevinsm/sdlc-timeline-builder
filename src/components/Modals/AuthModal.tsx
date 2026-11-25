@@ -18,6 +18,15 @@ export function AuthModal({ blocking = false }: { blocking?: boolean }) {
   useEffect(() => {
     if (!blocking && activeModal !== "auth") return;
     fetchHealthStatus().then((h) => setGoogleEnabled(h.googleEnabled));
+    try {
+      const errParam = new URLSearchParams(window.location.search).get("error");
+      if (errParam) {
+        const id = setTimeout(() => setError(`OAuth error: ${errParam}`), 0);
+        return () => clearTimeout(id);
+      }
+    } catch {
+      // Ignore
+    }
   }, [activeModal, blocking]);
 
   if (!blocking && activeModal !== "auth") return null;
@@ -37,6 +46,7 @@ export function AuthModal({ blocking = false }: { blocking?: boolean }) {
       await authClient.signIn.social({
         provider: "google",
         callbackURL: "/",
+        errorCallbackURL: "/?error=google_oauth_failed",
       });
     } catch {
       setError(

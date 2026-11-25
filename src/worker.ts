@@ -109,15 +109,22 @@ function createAuth(env: Env, origin: string) {
     dialect: new D1Dialect({ database: env.DB as never }),
   });
 
-  const hasGoogle = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+  const googleId = env.GOOGLE_CLIENT_ID?.trim();
+  const googleSecret = env.GOOGLE_CLIENT_SECRET?.trim();
+  const hasGoogle = Boolean(googleId && googleSecret);
 
   return betterAuth({
     database: {
       db,
       type: "sqlite",
     },
-    secret: env.BETTER_AUTH_SECRET || "dev-fallback-secret-change-in-prod-32chars",
+    secret:
+      env.BETTER_AUTH_SECRET?.trim() ||
+      "dev-fallback-secret-change-in-prod-32chars",
     baseURL: env.BETTER_AUTH_URL || origin,
+    onAPIError: {
+      errorURL: "/",
+    },
     trustedOrigins: [
       "https://tlb.web.id",
       "https://www.tlb.web.id",
@@ -137,8 +144,8 @@ function createAuth(env: Env, origin: string) {
       ? {
           socialProviders: {
             google: {
-              clientId: env.GOOGLE_CLIENT_ID!,
-              clientSecret: env.GOOGLE_CLIENT_SECRET!,
+              clientId: googleId!,
+              clientSecret: googleSecret!,
             },
           },
         }
