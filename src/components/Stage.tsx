@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@/components/IconSprite";
 import { TimelineCard } from "@/components/TimelineCard";
 import {
@@ -9,6 +9,7 @@ import {
   MONTH_SHORT_ID,
   SCALE_MODES,
 } from "@/constants/theme";
+import { collectDepEdges } from "@/engine/dependency";
 import { buildTimelineModel } from "@/engine/layoutModel";
 import { useTimeline } from "@/store/useTimelineStore";
 
@@ -100,15 +101,38 @@ export function Stage() {
     setMode,
     setZoom,
     openModal,
+    recalculateSchedule,
+    showNotice,
     t,
   } = useTimeline();
   const scrollRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const conflictRef = useRef<HTMLDivElement>(null);
+  const [conflictsOpen, setConflictsOpen] = useState(false);
 
   const model = useMemo(
     () => buildTimelineModel(activePage, project.mode, lang),
     [activePage, project.mode, lang]
   );
+
+  const conflictEdges = useMemo(
+    () => collectDepEdges(activePage).filter((e) => e.conflict),
+    [activePage]
+  );
+
+  useEffect(() => {
+    if (!conflictsOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (
+        conflictRef.current &&
+        !conflictRef.current.contains(e.target as Node)
+      ) {
+        setConflictsOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [conflictsOpen]);
 
   const monthShorts = lang === "en" ? MONTH_SHORT_EN : MONTH_SHORT_ID;
   const cmIdx = MONTH_NAMES_ID.indexOf(
@@ -200,6 +224,121 @@ export function Stage() {
         </div>
 
         <div className="stats">
+          {model.overall != null && (
+            <span className="stat" title={lang === "en" ? "Overall progress" : "Progress keseluruhan"}>
+              <Icon name="check-circle" />
+              <span className="w-10 h-1.5 rounded-full bg-[#D8E0DB] overflow-hidden inline-block">
+                <span
+                  className="block h-full rounded-full"
+                  style={{
+                    width: `${model.overall}%`,
+                    background: "var(--brand)",
+                  }}
+                />
+              </span>
+              <span>{model.overall}%</span>
+            </span>
+          )}
+
+          {conflictEdges.length > 0 && (
+            <div className="relative" ref={conflictRef}>
+              <button
+                type="button"
+                onClick={() => setConflictsOpen((o) => !o)}
+                className="inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-[14px] bg-[#FFF1E0] text-[#9A5B13] hover:bg-[#FFE6C7] text-[11.5px] font-bold whitespace-nowrap transition-colors"
+              >
+                <Icon name="dep" size="xs" />
+                <span>
+                  {conflictEdges.length}{" "}
+                  {lang === "en"
+                    ? "dependency conflict(s)"
+                    : "konflik dependency"}
+                </span>
+              </button>
+
+              {conflictsOpen && (
+                <div className="absolute right-0 top-full mt-2 z-[150] w-[360px] rounded-2xl border border-[#E2E8E4] bg-white shadow-2xl py-2 text-[12px]">
+                  <div className="px-4 py-1.5 text-[10px] font-extrabold tracking-wider uppercase text-[var(--muted)]">
+                    {lang === "en"
+                      ? "DEPENDENCY CONFLICTS — CLICK TO EDIT"
+                      : "KONFLIK DEPENDENCY"}
+                  </div>
+                  <div className="max-h-[280px] overflow-y-auto flex flex-col">
+                    {conflictEdges.map((edge) => {
+                      const fromRow = activePage.rows.find(
+                        (r) => r.id === edge.fromId
+                      );
+                      const toRow = activePage.rows.find(
+                        (r) => r.id === edge.toId
+                      );
+                      const reason =
+                        edge.type === "FS"
+                          ? lang === "en"
+                            ? "start too early"
+                            : "mulai terlalu cepat"
+                          : edge.type === "SS"
+                            ? lang === "en"
+                              ? "start before predecessor"
+                              : "mulai sebelum predecessor"
+                            : edge.type === "FF"
+                              ? lang === "en"
+                                ? "finish before predecessor"
+                                : "selesai sebelum predecessor"
+                              : lang === "en"
+                                ? "finish too early"
+                                : "selesai terlalu cepat";
+                      return (
+                        <div
+                          key={`${edge.fromId}-${edge.toId}-${edge.type}`}
+                          className="flex items-start gap-2.5 px-4 py-2 hover:bg-[#FAFBF9] text-[var(--ink)]"
+                        >
+                          <Icon
+                            name="alert"
+                            size="sm"
+                            className="text-[var(--muted)] shrink-0 mt-0.5"
+                          />
+                          <span className="leading-snug">
+                            <span className="font-semibold">
+                              {toRow?.name || edge.toId}
+                            </span>{" "}
+                            ← {fromRow?.name || edge.fromId} ({edge.type}):{" "}
+                            <span className="text-[var(--ink-2)]">{reason}</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-1 pt-1 border-t border-[#EEF2EF]">
+                    <button
+                      type="button"
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-left font-semibold text-[var(--ink)] hover:bg-[#F3F6F4] transition-colors"
+                      onClick={() => {
+                        recalculateSchedule();
+                        setConflictsOpen(false);
+                        showNotice(
+                          lang === "en"
+                            ? "Schedule recalculated!"
+                            : "Jadwal dihitung ulang!"
+                        );
+                      }}
+                    >
+                      <Icon
+                        name="reset"
+                        size="sm"
+                        className="text-[var(--muted)]"
+                      />
+                      <span>
+                        {lang === "en"
+                          ? "Recalculate schedule"
+                          : "Hitung ulang jadwal"}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <span className="stat">
             <Icon name="target" />
             <span>{currentPeriodBadge}</span>

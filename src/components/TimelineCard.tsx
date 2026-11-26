@@ -427,30 +427,36 @@ export function TimelineCard({
       {/* Legend */}
       {page.showLegend && (
         <div className="tl-legend">
-          <span className="text-[10px] font-extrabold tracking-wider text-[var(--muted)] uppercase">
-            STATUS
-          </span>
-          {(["done", "inprogress", "atrisk", "notstarted"] as const).map(
-            (st) => (
-              <span key={st} className="lg">
-                <span
-                  className="dot"
-                  style={{ background: STATUS_META[st].color }}
-                />
-                <span>{t(`st.${st}.label`)}</span>
-              </span>
-            )
-          )}
-          <span className="lg">
-            <span className="text-[#E09200] leading-none">★</span>
-            <span>Milestone</span>
-          </span>
-          {page.showToday && tu != null && (
-            <span className="text-[var(--muted)] font-medium">
-              ¦ {lang === "en" ? "This week" : "Minggu ini"} ·{" "}
-              {currentPeriodBadge}
+          <div
+            className={`flex items-center flex-wrap gap-x-4 gap-y-1.5 ${
+              page.rows.length > 0 ? "sticky left-[22px] z-20 bg-white pr-3" : ""
+            }`}
+          >
+            <span className="text-[10px] font-extrabold tracking-wider text-[var(--muted)] uppercase">
+              STATUS
             </span>
-          )}
+            {(["done", "inprogress", "atrisk", "notstarted"] as const).map(
+              (st) => (
+                <span key={st} className="lg">
+                  <span
+                    className="dot"
+                    style={{ background: STATUS_META[st].color }}
+                  />
+                  <span>{t(`st.${st}.label`)}</span>
+                </span>
+              )
+            )}
+            <span className="lg">
+              <span className="text-[#E09200] leading-none">★</span>
+              <span>Milestone</span>
+            </span>
+            {page.showToday && tu != null && (
+              <span className="text-[var(--muted)] font-medium">
+                ¦ {lang === "en" ? "This week" : "Minggu ini"} ·{" "}
+                {currentPeriodBadge}
+              </span>
+            )}
+          </div>
           {model.overall != null && (
             <span className="ml-auto font-extrabold text-[var(--brand-700)] bg-[var(--brand-50)] px-2.5 py-0.5 rounded-full">
               {lang === "en" ? "Overall" : "Total"}: {model.overall}%
