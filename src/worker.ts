@@ -822,6 +822,7 @@ export class TimelineRoom {
 
     let msg: {
       type?: string;
+      ops?: unknown[];
       version?: number;
       updatedAt?: string;
       data?: unknown;
@@ -847,6 +848,35 @@ export class TimelineRoom {
 
     const meta = ws.deserializeAttachment() as RoomMemberAttachment | null;
     if (!meta) return;
+
+    if (msg.type === "ops") {
+      if (meta.role === "viewer") {
+        try {
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              error: "Viewers cannot broadcast edits",
+            })
+          );
+        } catch {
+          // Ignore
+        }
+        return;
+      }
+
+      if (Array.isArray(msg.ops) && msg.ops.length > 0) {
+        this.broadcast(
+          {
+            type: "remote_ops",
+            senderId: meta.userId,
+            senderName: meta.name,
+            ops: msg.ops,
+          },
+          ws
+        );
+      }
+      return;
+    }
 
     if (msg.type === "state_update") {
       if (meta.role === "viewer") {

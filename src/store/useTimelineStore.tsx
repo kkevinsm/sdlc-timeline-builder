@@ -27,6 +27,11 @@ import {
   type MemberRole,
   type PresenceUser,
 } from "@/lib/authClient";
+import {
+  applyTimelineOps,
+  diffProjectOps,
+  type TimelineOp,
+} from "@/lib/syncOps";
 import type {
   DepType,
   LangCode,
@@ -134,6 +139,8 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const lastSyncedJsonRef = useRef<string>("");
+  const lastSyncedProjectRef = useRef<ProjectData | null>(null);
+  const prevBroadcastProjectRef = useRef<ProjectData | null>(null);
   const cloudVersionRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -274,6 +281,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
             expectedVersion: cloudVersionRef.current ?? undefined,
           });
           lastSyncedJsonRef.current = serialized;
+          lastSyncedProjectRef.current = project;
           cloudVersionRef.current = res.version;
           setCloudProjectVersion(res.version);
           if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -291,14 +299,50 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
             try {
               const latest = await loadCloudProject(cloudProjectId);
               if (latest?.data?.pages?.length > 0) {
-                lastSyncedJsonRef.current = JSON.stringify(latest.data);
-                cloudVersionRef.current = latest.version ?? null;
-                setCloudProjectVersion(latest.version ?? null);
-                setProject(latest.data);
+                const localOps = lastSyncedProjectRef.current
+                  ? diffProjectOps(lastSyncedProjectRef.current, project)
+                  : [];
+                const merged =
+                  localOps.length > 0
+                    ? applyTimelineOps(latest.data, localOps)
+                    : latest.data;
+
+                let finalVersion = latest.version ?? null;
+                if (localOps.length > 0) {
+                  const savedMerged = await saveCloudProject(
+                    cloudProjectId,
+                    merged,
+                    {
+                      workspaceId: activeWorkspaceId,
+                      expectedVersion: latest.version,
+                    }
+                  );
+                  finalVersion = savedMerged.version;
+                }
+
+                lastSyncedJsonRef.current = JSON.stringify(merged);
+                lastSyncedProjectRef.current = merged;
+                prevBroadcastProjectRef.current = merged;
+                cloudVersionRef.current = finalVersion;
+                setCloudProjectVersion(finalVersion);
+                setProject(merged);
+                if (
+                  localOps.length > 0 &&
+                  wsRef.current?.readyState === WebSocket.OPEN
+                ) {
+                  wsRef.current.send(
+                    JSON.stringify({
+                      type: "state_update",
+                      version: finalVersion,
+                      updatedAt: new Date().toISOString(),
+                      data: merged,
+                    })
+                  );
+                }
                 setNotice(
                   lang === "en"
-                    ? "Synced newer version from team."
-                    : "Menyinkronkan versi terbaru dari tim."
+                    ? "Merged concurrent edits from team."
+                    : "Menggabungkan perubahan bersamaan dari tim."
                 );
               }
             } catch {
@@ -376,12 +420,32 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
             senderId?: string;
             senderName?: string;
             version?: number | null;
+            ops?: TimelineOp[];
             data?: ProjectData;
           };
           if (msg.type === "presence") {
             setRoomUsers(Array.isArray(msg.users) ? msg.users : []);
+          } else if (
+            msg.type === "remote_ops" &&
+            Array.isArray(msg.ops) &&
+            msg.ops.length > 0
+          ) {
+            setProject((prev) => {
+              const merged = applyTimelineOps(prev, msg.ops!);
+              lastSyncedJsonRef.current = JSON.stringify(merged);
+              prevBroadcastProjectRef.current = merged;
+              return merged;
+            });
+            if (lastSyncedProjectRef.current) {
+              lastSyncedProjectRef.current = applyTimelineOps(
+                lastSyncedProjectRef.current,
+                msg.ops
+              );
+            }
           } else if (msg.type === "remote_update" && msg.data?.pages?.length) {
             lastSyncedJsonRef.current = JSON.stringify(msg.data);
+            lastSyncedProjectRef.current = msg.data;
+            prevBroadcastProjectRef.current = msg.data;
             if (typeof msg.version === "number") {
               cloudVersionRef.current = msg.version;
               setCloudProjectVersion(msg.version);
@@ -427,6 +491,35 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       wsRef.current = null;
     };
   }, [userId, hydratedForUser, cloudProjectId, lang, showNotice]);
+
+  // Immediate granular op broadcast over WebSocket on local project edits
+  useEffect(() => {
+    if (
+      !userId ||
+      hydratedForUser !== userId ||
+      !cloudProjectId ||
+      cloudProjectRole === "viewer"
+    ) {
+      prevBroadcastProjectRef.current = project;
+      return;
+    }
+
+    if (JSON.stringify(project) === lastSyncedJsonRef.current) {
+      prevBroadcastProjectRef.current = project;
+      return;
+    }
+
+    if (
+      prevBroadcastProjectRef.current &&
+      wsRef.current?.readyState === WebSocket.OPEN
+    ) {
+      const ops = diffProjectOps(prevBroadcastProjectRef.current, project);
+      if (ops.length > 0) {
+        wsRef.current.send(JSON.stringify({ type: "ops", ops }));
+      }
+    }
+    prevBroadcastProjectRef.current = project;
+  }, [project, userId, hydratedForUser, cloudProjectId, cloudProjectRole]);
 
   const commitProject = useCallback(
     (updater: (prev: ProjectData) => ProjectData, recordHistory = true) => {
