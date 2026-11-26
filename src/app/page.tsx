@@ -5,6 +5,7 @@ import { AppBar } from "@/components/AppBar";
 import { Icon, IconSprite } from "@/components/IconSprite";
 import { AuthModal } from "@/components/Modals/AuthModal";
 import { BulkPasteModal } from "@/components/Modals/BulkPasteModal";
+import { ChangesDrawer } from "@/components/ChangesDrawer";
 import { CloudProjectsModal } from "@/components/Modals/CloudProjectsModal";
 import { ExportModal } from "@/components/Modals/ExportModal";
 import { HelpModal } from "@/components/Modals/HelpModal";
@@ -226,6 +227,7 @@ function WorkspaceShell() {
       <AuthModal />
       <CloudProjectsModal />
       <ShareModal />
+      <ChangesDrawer />
       {notice && (
         <div
           role="status"

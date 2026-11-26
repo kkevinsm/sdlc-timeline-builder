@@ -45,7 +45,7 @@ import type {
 
 const MAX_HISTORY = 60;
 
-export type ModalKind = "paste" | "plan" | "export" | "present" | "help" | "auth" | "cloud" | "team" | null;
+export type ModalKind = "paste" | "plan" | "export" | "present" | "help" | "auth" | "cloud" | "team" | "changes" | null;
 
 interface TimelineContextValue {
   project: ProjectData;

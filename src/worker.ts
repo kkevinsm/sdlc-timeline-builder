@@ -201,6 +201,193 @@ async function getWorkspaceRole(
   return row?.role ?? null;
 }
 
+function formatBarSchedule(bar?: {
+  startMonth?: string;
+  startWeek?: number;
+  endMonth?: string;
+  endWeek?: number;
+  sd?: string;
+  ed?: string;
+}): string {
+  if (!bar) return "—";
+  if (bar.sd || bar.ed) return `${bar.sd || "?"} → ${bar.ed || "?"}`;
+  if (bar.startMonth || bar.endMonth) {
+    return `${bar.startMonth || "?"} W${bar.startWeek || 1} → ${bar.endMonth || "?"} W${bar.endWeek || 1}`;
+  }
+  return "—";
+}
+
+interface ChangeDraft {
+  pageId: number | null;
+  pageName: string | null;
+  targetLabel: string;
+  fieldLabel: string;
+  oldValue: string;
+  newValue: string;
+}
+
+function computeChangeEntries(prevJson: string, nextData: unknown): ChangeDraft[] {
+  try {
+    const prev = JSON.parse(prevJson) as {
+      pages?: Array<{
+        id: number;
+        name?: string;
+        title?: string;
+        rows?: Array<{
+          id: string;
+          name?: string;
+          owner?: string;
+          bar?: {
+            startMonth?: string;
+            startWeek?: number;
+            endMonth?: string;
+            endWeek?: number;
+            sd?: string;
+            ed?: string;
+            progress?: number;
+            status?: string;
+          };
+        }>;
+      }>;
+    };
+    const next = nextData as typeof prev;
+    if (!Array.isArray(prev?.pages) || !Array.isArray(next?.pages)) return [];
+
+    const changes: ChangeDraft[] = [];
+    const prevPages = new Map(prev.pages.map((p) => [p.id, p]));
+    const nextPages = new Map(next.pages.map((p) => [p.id, p]));
+
+    for (const np of next.pages) {
+      const pp = prevPages.get(np.id);
+      const pLabel = np.name || np.title || `Page ${np.id}`;
+      if (!pp) {
+        changes.push({
+          pageId: np.id,
+          pageName: pLabel,
+          targetLabel: pLabel,
+          fieldLabel: "Halaman Baru",
+          oldValue: "—",
+          newValue: pLabel,
+        });
+        continue;
+      }
+
+      if ((pp.title || "") !== (np.title || "")) {
+        changes.push({
+          pageId: np.id,
+          pageName: pLabel,
+          targetLabel: pLabel,
+          fieldLabel: "Judul",
+          oldValue: pp.title || "—",
+          newValue: np.title || "—",
+        });
+      }
+
+      const prevRows = new Map((pp.rows || []).map((r) => [r.id, r]));
+      const nextRows = new Map((np.rows || []).map((r) => [r.id, r]));
+
+      for (const pr of pp.rows || []) {
+        if (!nextRows.has(pr.id)) {
+          changes.push({
+            pageId: np.id,
+            pageName: pLabel,
+            targetLabel: pr.name || pr.id,
+            fieldLabel: "Hapus Baris",
+            oldValue: pr.name || "—",
+            newValue: "Dihapus",
+          });
+        }
+      }
+
+      for (const nr of np.rows || []) {
+        const pr = prevRows.get(nr.id);
+        const rName = nr.name || nr.id;
+        if (!pr) {
+          changes.push({
+            pageId: np.id,
+            pageName: pLabel,
+            targetLabel: rName,
+            fieldLabel: "Tambah Baris",
+            oldValue: "—",
+            newValue: rName,
+          });
+          continue;
+        }
+        if ((pr.name || "") !== (nr.name || "")) {
+          changes.push({
+            pageId: np.id,
+            pageName: pLabel,
+            targetLabel: rName,
+            fieldLabel: "Nama",
+            oldValue: pr.name || "—",
+            newValue: nr.name || "—",
+          });
+        }
+        if ((pr.owner || "") !== (nr.owner || "")) {
+          changes.push({
+            pageId: np.id,
+            pageName: pLabel,
+            targetLabel: rName,
+            fieldLabel: "PIC",
+            oldValue: pr.owner || "—",
+            newValue: nr.owner || "—",
+          });
+        }
+        if ((pr.bar?.status || "") !== (nr.bar?.status || "")) {
+          changes.push({
+            pageId: np.id,
+            pageName: pLabel,
+            targetLabel: rName,
+            fieldLabel: "Status",
+            oldValue: pr.bar?.status || "—",
+            newValue: nr.bar?.status || "—",
+          });
+        }
+        if ((pr.bar?.progress ?? 0) !== (nr.bar?.progress ?? 0)) {
+          changes.push({
+            pageId: np.id,
+            pageName: pLabel,
+            targetLabel: rName,
+            fieldLabel: "Progress",
+            oldValue: `${pr.bar?.progress ?? 0}%`,
+            newValue: `${nr.bar?.progress ?? 0}%`,
+          });
+        }
+        const prevSched = formatBarSchedule(pr.bar);
+        const nextSched = formatBarSchedule(nr.bar);
+        if (prevSched !== nextSched) {
+          changes.push({
+            pageId: np.id,
+            pageName: pLabel,
+            targetLabel: rName,
+            fieldLabel: "Jadwal",
+            oldValue: prevSched,
+            newValue: nextSched,
+          });
+        }
+      }
+    }
+
+    for (const pp of prev.pages) {
+      if (!nextPages.has(pp.id)) {
+        const pLabel = pp.name || pp.title || `Page ${pp.id}`;
+        changes.push({
+          pageId: pp.id,
+          pageName: pLabel,
+          targetLabel: pLabel,
+          fieldLabel: "Hapus Halaman",
+          oldValue: pLabel,
+          newValue: "Dihapus",
+        });
+      }
+    }
+
+    return changes.slice(0, 20);
+  } catch {
+    return [];
+  }
+}
+
 async function getProjectRowAndRole(
   db: D1DatabaseLike,
   projectId: string,
@@ -655,6 +842,31 @@ const worker = {
               .bind(name, dataJson, nextWsId, nextVersion, userLabel, now, id)
               .run();
 
+            const changeEntries = computeChangeEntries(
+              existing.row.data,
+              body.data ?? body
+            );
+            for (const ch of changeEntries) {
+              await env.DB.prepare(
+                `INSERT INTO project_changes (id, projectId, userId, userName, pageId, pageName, targetLabel, fieldLabel, oldValue, newValue, createdAt)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              )
+                .bind(
+                  `chg-${crypto.randomUUID().slice(0, 12)}`,
+                  id,
+                  userId,
+                  userLabel,
+                  ch.pageId,
+                  ch.pageName,
+                  ch.targetLabel.slice(0, 120),
+                  ch.fieldLabel,
+                  ch.oldValue.slice(0, 160),
+                  ch.newValue.slice(0, 160),
+                  now
+                )
+                .run();
+            }
+
             return jsonRes({
               ok: true,
               id,
@@ -696,6 +908,38 @@ const worker = {
         } catch {
           return jsonRes({ error: "Invalid project payload" }, 400);
         }
+      }
+
+      // Per-project Show Changes history endpoint
+      const changesMatch = url.pathname.match(
+        /^\/api\/projects\/([a-zA-Z0-9_-]+)\/changes$/
+      );
+      if (changesMatch && request.method === "GET") {
+        const projectId = changesMatch[1];
+        const access = await getProjectRowAndRole(env.DB, projectId, userId);
+        if (!access) return jsonRes({ error: "Not found" }, 404);
+
+        const pageIdParam = url.searchParams.get("pageId");
+        const pageIdNum = pageIdParam ? Number(pageIdParam) : null;
+        const query =
+          pageIdNum !== null && !Number.isNaN(pageIdNum)
+            ? env.DB.prepare(
+                `SELECT id, projectId, userId, userName, pageId, pageName, targetLabel, fieldLabel, oldValue, newValue, createdAt
+                 FROM project_changes
+                 WHERE projectId = ? AND pageId = ?
+                 ORDER BY createdAt DESC
+                 LIMIT 60`
+              ).bind(projectId, pageIdNum)
+            : env.DB.prepare(
+                `SELECT id, projectId, userId, userName, pageId, pageName, targetLabel, fieldLabel, oldValue, newValue, createdAt
+                 FROM project_changes
+                 WHERE projectId = ?
+                 ORDER BY createdAt DESC
+                 LIMIT 60`
+              ).bind(projectId);
+
+        const res = await query.all();
+        return jsonRes({ changes: res.results || [] });
       }
 
       // Per-project Google-Sheets-style sharing routes

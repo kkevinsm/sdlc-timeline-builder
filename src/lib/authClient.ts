@@ -381,3 +381,32 @@ export async function updateProjectGeneralAccess(
     name: string;
   };
 }
+
+export interface ProjectChangeItem {
+  id: string;
+  projectId: string;
+  userId: string;
+  userName: string;
+  pageId: number | null;
+  pageName: string | null;
+  targetLabel: string;
+  fieldLabel: string;
+  oldValue: string;
+  newValue: string;
+  createdAt: string;
+}
+
+export async function getProjectChanges(
+  projectId: string,
+  pageId?: number | null
+): Promise<ProjectChangeItem[]> {
+  const qs =
+    typeof pageId === "number" ? `?pageId=${encodeURIComponent(String(pageId))}` : "";
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/changes${qs}`,
+    { credentials: "include" }
+  );
+  if (!res.ok) throw new Error("Failed to load change history");
+  const json = (await res.json()) as { changes: ProjectChangeItem[] };
+  return json.changes || [];
+}

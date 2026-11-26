@@ -99,6 +99,22 @@ CREATE TABLE IF NOT EXISTS project_members (
 CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(userId, updatedAt DESC);
 CREATE INDEX IF NOT EXISTS idx_projects_ws ON projects(workspaceId, updatedAt DESC);
 CREATE INDEX IF NOT EXISTS idx_project_members_userId ON project_members(userId);
+
+CREATE TABLE IF NOT EXISTS project_changes (
+  id TEXT PRIMARY KEY NOT NULL,
+  projectId TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  userId TEXT NOT NULL,
+  userName TEXT NOT NULL,
+  pageId INTEGER,
+  pageName TEXT,
+  targetLabel TEXT NOT NULL,
+  fieldLabel TEXT NOT NULL,
+  oldValue TEXT,
+  newValue TEXT,
+  createdAt TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_changes_proj ON project_changes(projectId, createdAt DESC);
 CREATE INDEX IF NOT EXISTS idx_ws_members_user ON workspace_members(userId);
 CREATE INDEX IF NOT EXISTS idx_ws_invites_token ON workspace_invites(token);
 CREATE INDEX IF NOT EXISTS idx_session_token ON session(token);

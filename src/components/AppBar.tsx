@@ -297,6 +297,19 @@ export function AppBar() {
 
       {session?.user ? (
         <div className="flex items-center gap-1.5 ml-1">
+          <button
+            type="button"
+            className="abtn icon-always"
+            title={lang === "en" ? "Show changes history" : "Riwayat perubahan"}
+            aria-label={lang === "en" ? "Show changes history" : "Riwayat perubahan"}
+            onClick={() => openModal("changes")}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1">
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M12 7v5l3 2" />
+            </svg>
+          </button>
           {roomConnected && roomUsers.length > 0 && (
             <div
               className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/15 text-white text-[11.5px] font-semibold border border-white/20"
