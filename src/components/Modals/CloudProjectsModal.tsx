@@ -26,7 +26,7 @@ export function CloudProjectsModal() {
     activeModal,
     openModal,
     closeModal,
-    loadProject,
+    openCloudProject,
     lang,
     showNotice,
   } = useTimeline();
@@ -112,11 +112,13 @@ export function CloudProjectsModal() {
     setBusyId(item.id);
     try {
       const res = await loadCloudProject(item.id);
-      loadProject(res.data);
-      setCloudProjectId(res.id);
-      setActiveWorkspaceId(res.workspaceId ?? null);
-      setCloudProjectRole(item.role ?? "owner");
-      setCloudProjectVersion(res.version ?? null);
+      openCloudProject({
+        id: res.id,
+        workspaceId: res.workspaceId ?? null,
+        role: item.role ?? res.role ?? "owner",
+        version: res.version,
+        data: res.data,
+      });
       showNotice(
         lang === "en"
           ? `Loaded "${res.name}"`

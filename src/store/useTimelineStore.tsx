@@ -103,6 +103,13 @@ interface TimelineContextValue {
   collapseAllGroups: () => void;
   resetProject: () => void;
   loadProject: (data: ProjectData) => void;
+  openCloudProject: (payload: {
+    id: string;
+    workspaceId?: string | null;
+    role?: MemberRole;
+    version?: number;
+    data: ProjectData;
+  }) => void;
   undo: () => void;
   redo: () => void;
   showNotice: (msg: string) => void;
@@ -210,12 +217,38 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const savedCid = localStorage.getItem(userCloudIdKey(userId));
+        if (savedCid) {
+          try {
+            const latest = await loadCloudProject(savedCid);
+            if (!cancelled && latest?.data?.pages?.length > 0) {
+              const synced = syncPagesWithUTC7(latest.data);
+              lastSyncedJsonRef.current = JSON.stringify(synced);
+              lastSyncedProjectRef.current = synced;
+              prevBroadcastProjectRef.current = synced;
+              cloudVersionRef.current = latest.version ?? null;
+              setProject(synced);
+              setCloudProjectId(latest.id);
+              setActiveWorkspaceId(latest.workspaceId ?? null);
+              setCloudProjectRole(latest.role ?? "owner");
+              setCloudProjectVersion(latest.version ?? null);
+              setHydratedForUser(userId);
+              return;
+            }
+          } catch {
+            // Fall through to localStorage draft if offline or deleted
+          }
+        }
+
         const raw = localStorage.getItem(userProjKey(userId));
         if (raw) {
           const parsed = JSON.parse(raw) as ProjectData;
           if (parsed && Array.isArray(parsed.pages) && parsed.pages.length > 0) {
             if (!cancelled) {
-              setProject(syncPagesWithUTC7(parsed));
+              const synced = syncPagesWithUTC7(parsed);
+              lastSyncedJsonRef.current = JSON.stringify(synced);
+              lastSyncedProjectRef.current = synced;
+              prevBroadcastProjectRef.current = synced;
+              setProject(synced);
               setCloudProjectId(savedCid || null);
               setHydratedForUser(userId);
             }
@@ -228,7 +261,12 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled && cloudList.length > 0) {
           const latest = await loadCloudProject(cloudList[0].id);
           if (!cancelled && latest?.data?.pages?.length > 0) {
-            setProject(syncPagesWithUTC7(latest.data));
+            const synced = syncPagesWithUTC7(latest.data);
+            lastSyncedJsonRef.current = JSON.stringify(synced);
+            lastSyncedProjectRef.current = synced;
+            prevBroadcastProjectRef.current = synced;
+            cloudVersionRef.current = latest.version ?? null;
+            setProject(synced);
             setCloudProjectId(latest.id);
             setActiveWorkspaceId(latest.workspaceId ?? null);
             setCloudProjectRole(cloudList[0].role ?? "owner");
@@ -409,6 +447,26 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
         if (closed) return;
         backoffMs = 1000;
         setRoomConnected(true);
+        // Catch up from D1 on connect/reconnect in case updates happened while offline
+        void loadCloudProject(cloudProjectId)
+          .then((latest) => {
+            if (
+              closed ||
+              !latest?.data?.pages?.length ||
+              (latest.version != null && latest.version === cloudVersionRef.current)
+            ) {
+              return;
+            }
+            lastSyncedJsonRef.current = JSON.stringify(latest.data);
+            lastSyncedProjectRef.current = latest.data;
+            prevBroadcastProjectRef.current = latest.data;
+            cloudVersionRef.current = latest.version ?? null;
+            setCloudProjectVersion(latest.version ?? null);
+            setProject(latest.data);
+          })
+          .catch(() => {
+            // Ignore transient catch-up errors
+          });
         pingTimer = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: "ping" }));
@@ -703,6 +761,29 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       commitProject(() => data, true);
     },
     [commitProject]
+  );
+
+  const openCloudProject = useCallback(
+    (payload: {
+      id: string;
+      workspaceId?: string | null;
+      role?: MemberRole;
+      version?: number;
+      data: ProjectData;
+    }) => {
+      lastSyncedJsonRef.current = JSON.stringify(payload.data);
+      lastSyncedProjectRef.current = payload.data;
+      prevBroadcastProjectRef.current = payload.data;
+      cloudVersionRef.current = payload.version ?? null;
+      setPast([]);
+      setFuture([]);
+      setProject(payload.data);
+      setCloudProjectId(payload.id);
+      setActiveWorkspaceId(payload.workspaceId ?? null);
+      setCloudProjectRole(payload.role ?? "owner");
+      setCloudProjectVersion(payload.version ?? null);
+    },
+    []
   );
 
   const addGroup = useCallback(
@@ -1058,6 +1139,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       collapseAllGroups,
       resetProject,
       loadProject,
+      openCloudProject,
       undo,
       redo,
       showNotice,
@@ -1115,6 +1197,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       collapseAllGroups,
       resetProject,
       loadProject,
+      openCloudProject,
       undo,
       redo,
       showNotice,
