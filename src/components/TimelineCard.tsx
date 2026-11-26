@@ -469,7 +469,7 @@ export function TimelineCard({
           {/* Sticky Header Row */}
           <div className="flex border-b border-[#D8E0DB]">
             <div
-              className="sticky left-0 z-40 flex shrink-0 border-r border-white/20 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)]"
+              className={`${page.rows.length > 0 ? "sticky left-0 z-40" : "relative"} flex shrink-0 border-r border-white/20 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)]`}
               style={{
                 width: fixedColsWidth,
                 background: page.accent,
@@ -738,7 +738,7 @@ export function TimelineCard({
                   style={{ height: page.rh }}
                 >
                   <div
-                    className="sticky left-0 z-30 shrink-0 border-r border-[var(--line-2)] bg-white"
+                    className={`${page.rows.length > 0 ? "sticky left-0 z-30" : "relative"} shrink-0 border-r border-[var(--line-2)] bg-white`}
                     style={{
                       width: fixedColsWidth,
                     }}
