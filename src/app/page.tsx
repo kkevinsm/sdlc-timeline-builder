@@ -14,7 +14,12 @@ import { PageTabs } from "@/components/PageTabs";
 import { PresentationMode } from "@/components/PresentationMode";
 import { Sidebar } from "@/components/Sidebar/Sidebar";
 import { Stage } from "@/components/Stage";
-import { acceptWorkspaceInvite, authClient } from "@/lib/authClient";
+import {
+  acceptWorkspaceInvite,
+  authClient,
+  listCloudProjects,
+  loadCloudProject,
+} from "@/lib/authClient";
 import { TimelineProvider, useTimeline } from "@/store/useTimelineStore";
 
 function WorkspaceShell() {
@@ -31,41 +36,99 @@ function WorkspaceShell() {
     undo,
     redo,
     showNotice,
+    cloudProjectId,
+    openCloudProject,
   } = useTimeline();
 
   useEffect(() => {
     if (!session?.user || typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const inviteToken = params.get("invite");
-    if (!inviteToken) return;
+    const projectParam = params.get("project");
+    if (!inviteToken && !projectParam) return;
 
-    const cleanUrl = () => {
+    const updateUrlProject = (pid: string | null) => {
       const next = new URL(window.location.href);
       next.searchParams.delete("invite");
+      if (pid) {
+        next.searchParams.set("project", pid);
+      } else {
+        next.searchParams.delete("project");
+      }
       window.history.replaceState({}, "", next.pathname + next.search + next.hash);
     };
 
     const timer = setTimeout(() => {
       void (async () => {
         try {
-          const res = await acceptWorkspaceInvite(inviteToken);
-          cleanUrl();
-          showNotice(
-            lang === "en"
-              ? `Joined "${res.workspaceName}" as ${res.role}!`
-              : `Bergabung ke "${res.workspaceName}" sebagai ${res.role}!`
-          );
-          openModal("team");
+          if (inviteToken) {
+            const res = await acceptWorkspaceInvite(inviteToken);
+            let targetPid = projectParam;
+            if (!targetPid) {
+              const allProjects = await listCloudProjects().catch(() => []);
+              const wsProj = allProjects.find((p) => p.workspaceId === res.workspaceId);
+              targetPid = wsProj?.id || null;
+            }
+            if (targetPid) {
+              const loaded = await loadCloudProject(targetPid);
+              openCloudProject({
+                id: loaded.id,
+                workspaceId: loaded.workspaceId ?? null,
+                role: loaded.role ?? res.role,
+                version: loaded.version,
+                data: loaded.data,
+              });
+              updateUrlProject(loaded.id);
+            } else {
+              updateUrlProject(null);
+              openModal("team");
+            }
+            showNotice(
+              lang === "en"
+                ? `Joined "${res.workspaceName}" as ${res.role}!`
+                : `Bergabung ke "${res.workspaceName}" sebagai ${res.role}!`
+            );
+          } else if (projectParam && projectParam !== cloudProjectId) {
+            const loaded = await loadCloudProject(projectParam);
+            openCloudProject({
+              id: loaded.id,
+              workspaceId: loaded.workspaceId ?? null,
+              role: loaded.role ?? "owner",
+              version: loaded.version,
+              data: loaded.data,
+            });
+            updateUrlProject(loaded.id);
+            showNotice(
+              lang === "en"
+                ? `Opened "${loaded.name}"`
+                : `Proyek "${loaded.name}" dibuka`
+            );
+          }
         } catch (err) {
-          cleanUrl();
-          const msg = err instanceof Error ? err.message : "Invalid invite";
+          updateUrlProject(cloudProjectId);
+          const msg = err instanceof Error ? err.message : "Invalid link";
           showNotice(msg);
         }
       })();
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [session?.user, lang, openModal, showNotice]);
+  }, [session?.user, lang, openModal, showNotice, cloudProjectId, openCloudProject]);
+
+  // Keep ?project=<id> synced in URL for easy Google-Sheets-style link sharing
+  useEffect(() => {
+    if (!session?.user || typeof window === "undefined") return;
+    const next = new URL(window.location.href);
+    if (next.searchParams.has("invite")) return;
+    const current = next.searchParams.get("project");
+    if (cloudProjectId && current !== cloudProjectId) {
+      next.searchParams.set("project", cloudProjectId);
+      window.history.replaceState({}, "", next.pathname + next.search + next.hash);
+    } else if (!cloudProjectId && current) {
+      next.searchParams.delete("project");
+      window.history.replaceState({}, "", next.pathname + next.search + next.hash);
+    }
+  }, [session?.user, cloudProjectId]);
 
   useEffect(() => {
     if (!session?.user) return;

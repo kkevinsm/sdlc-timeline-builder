@@ -16,7 +16,8 @@ import {
 import { useTimeline } from "@/store/useTimelineStore";
 
 export function TeamShareModal() {
-  const { activeModal, closeModal, lang, showNotice } = useTimeline();
+  const { activeModal, closeModal, lang, showNotice, cloudProjectId, activeWorkspaceId } =
+    useTimeline();
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [selectedWsId, setSelectedWsId] = useState<string | null>(null);
   const [detail, setDetail] = useState<WorkspaceDetail | null>(null);
@@ -87,6 +88,14 @@ export function TeamShareModal() {
     }
   };
 
+  const buildInviteLink = (token: string) => {
+    const base = `${window.location.origin}/?invite=${token}`;
+    if (cloudProjectId && (!activeWorkspaceId || activeWorkspaceId === selectedWsId)) {
+      return `${base}&project=${encodeURIComponent(cloudProjectId)}`;
+    }
+    return base;
+  };
+
   const handleCreateInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedWsId) return;
@@ -97,7 +106,7 @@ export function TeamShareModal() {
         inviteRole,
         inviteEmail
       );
-      const link = `${window.location.origin}/?invite=${inv.token}`;
+      const link = buildInviteLink(inv.token);
       try {
         await navigator.clipboard.writeText(link);
         showNotice(
@@ -122,11 +131,24 @@ export function TeamShareModal() {
   };
 
   const copyLink = async (token: string) => {
-    const link = `${window.location.origin}/?invite=${token}`;
+    const link = buildInviteLink(token);
     try {
       await navigator.clipboard.writeText(link);
       showNotice(
         lang === "en" ? "Invite link copied!" : "Link undangan disalin!"
+      );
+    } catch {
+      showNotice(link);
+    }
+  };
+
+  const copyDirectProjectLink = async () => {
+    if (!cloudProjectId) return;
+    const link = `${window.location.origin}/?project=${encodeURIComponent(cloudProjectId)}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      showNotice(
+        lang === "en" ? "Project link copied!" : "Link proyek disalin!"
       );
     } catch {
       showNotice(link);
@@ -348,6 +370,23 @@ export function TeamShareModal() {
                   </div>
 
                   {/* Active Invites */}
+                  {cloudProjectId && (
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-[var(--line)] bg-[#FAFBF9] text-[12px]">
+                      <span className="text-[var(--ink-2)] font-medium truncate">
+                        {lang === "en"
+                          ? "Direct link to active timeline"
+                          : "Link langsung ke timeline aktif"}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn xs soft shrink-0"
+                        onClick={copyDirectProjectLink}
+                      >
+                        <Icon name="copy" size="xs" />
+                        <span>{lang === "en" ? "Copy Link" : "Salin Link"}</span>
+                      </button>
+                    </div>
+                  )}
                   {detail.invites.length > 0 && (
                     <div className="flex flex-col gap-1.5">
                       <div className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--muted)]">
