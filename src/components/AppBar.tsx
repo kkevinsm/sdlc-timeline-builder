@@ -170,23 +170,23 @@ export function AppBar() {
         />
         <button
           type="button"
-          className="abtn icon-always"
+          className="abtn"
           title={t("pg.open.t")}
           aria-label={t("pg.open.t")}
           onClick={() => fileInputRef.current?.click()}
         >
           <Icon name="folder-open" />
-          <span className="lb">{t("pg.open")}</span>
+          <span>Open .json</span>
         </button>
         <button
           type="button"
-          className="abtn icon-always"
+          className="abtn"
           title={t("pg.save.t")}
           aria-label={t("pg.save.t")}
           onClick={handleSaveJson}
         >
           <Icon name="save" />
-          <span className="lb">{t("pg.save")}</span>
+          <span>Save .json</span>
         </button>
       </div>
 
