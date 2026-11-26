@@ -24,6 +24,7 @@ export function AppBar() {
     loadProject,
     cloudProjectId,
     setCloudProjectId,
+    exitToDashboard,
     roomUsers,
     roomConnected,
     t,
@@ -102,7 +103,12 @@ export function AppBar() {
       aria-label="Timeline Builder Online actions"
       onKeyDown={handleToolbarKeyDown}
     >
-      <div className="brand" title="Timeline Builder Online">
+      <button
+        type="button"
+        onClick={exitToDashboard}
+        className="brand text-left cursor-pointer hover:opacity-90 transition-opacity"
+        title={lang === "en" ? "Back to Timelines Home" : "Kembali ke Daftar Timeline"}
+      >
         <img
           src="/tlbicon.png"
           alt="Timeline Builder Online"
@@ -114,7 +120,7 @@ export function AppBar() {
           </b>
           <small>by WakeLabs</small>
         </div>
-      </div>
+      </button>
 
       <div className="ab-group" role="group" aria-label="Rows">
         <button

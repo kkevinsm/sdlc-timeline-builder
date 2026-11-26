@@ -13,6 +13,7 @@ import { PlanWizardModal } from "@/components/Modals/PlanWizardModal";
 import { ShareModal } from "@/components/Modals/ShareModal";
 import { PageTabs } from "@/components/PageTabs";
 import { PresentationMode } from "@/components/PresentationMode";
+import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { PublicLanding } from "@/components/PublicLanding";
 import { Sidebar } from "@/components/Sidebar/Sidebar";
 import { Stage } from "@/components/Stage";
@@ -206,6 +207,15 @@ function WorkspaceShell() {
       <>
         <IconSprite />
         <PublicLanding />
+      </>
+    );
+  }
+
+  if (!cloudProjectId) {
+    return (
+      <>
+        <IconSprite />
+        <ProjectDashboard />
       </>
     );
   }

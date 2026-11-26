@@ -110,6 +110,8 @@ interface TimelineContextValue {
     version?: number;
     data: ProjectData;
   }) => void;
+  createNewCloudProject: (initial?: ProjectData) => Promise<void>;
+  exitToDashboard: () => void;
   undo: () => void;
   redo: () => void;
   showNotice: (msg: string) => void;
@@ -216,11 +218,31 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const urlParams =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search)
+          : null;
+      const urlProjectId = urlParams?.get("project") || null;
+      const hasInvite = Boolean(urlParams?.get("invite"));
+
+      // If user opened root URL without ?project= or ?invite=, show Spreadsheet-style Project Dashboard
+      if (!urlProjectId && !hasInvite) {
+        if (!cancelled) {
+          setProject(createDefaultProject(lang));
+          setCloudProjectId(null);
+          setActiveWorkspaceId(null);
+          setCloudProjectRole("owner");
+          setCloudProjectVersion(null);
+          setHydratedForUser(userId);
+        }
+        return;
+      }
+
       try {
-        const savedCid = localStorage.getItem(userCloudIdKey(userId));
-        if (savedCid) {
+        const targetCid = urlProjectId || localStorage.getItem(userCloudIdKey(userId));
+        if (targetCid) {
           try {
-            const latest = await loadCloudProject(savedCid);
+            const latest = await loadCloudProject(targetCid);
             if (!cancelled && latest?.data?.pages?.length > 0) {
               const synced = syncPagesWithUTC7(latest.data);
               lastSyncedJsonRef.current = JSON.stringify(synced);
@@ -236,44 +258,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
               return;
             }
           } catch {
-            // Fall through to localStorage draft if offline or deleted
-          }
-        }
-
-        const raw = localStorage.getItem(userProjKey(userId));
-        if (raw) {
-          const parsed = JSON.parse(raw) as ProjectData;
-          if (parsed && Array.isArray(parsed.pages) && parsed.pages.length > 0) {
-            if (!cancelled) {
-              const synced = syncPagesWithUTC7(parsed);
-              lastSyncedJsonRef.current = JSON.stringify(synced);
-              lastSyncedProjectRef.current = synced;
-              prevBroadcastProjectRef.current = synced;
-              setProject(synced);
-              setCloudProjectId(savedCid || null);
-              setHydratedForUser(userId);
-            }
-            return;
-          }
-        }
-
-        // No local draft for this user: check their cloud projects in D1
-        const cloudList = await listCloudProjects();
-        if (!cancelled && cloudList.length > 0) {
-          const latest = await loadCloudProject(cloudList[0].id);
-          if (!cancelled && latest?.data?.pages?.length > 0) {
-            const synced = syncPagesWithUTC7(latest.data);
-            lastSyncedJsonRef.current = JSON.stringify(synced);
-            lastSyncedProjectRef.current = synced;
-            prevBroadcastProjectRef.current = synced;
-            cloudVersionRef.current = latest.version ?? null;
-            setProject(synced);
-            setCloudProjectId(latest.id);
-            setActiveWorkspaceId(latest.workspaceId ?? null);
-            setCloudProjectRole(cloudList[0].role ?? "owner");
-            setCloudProjectVersion(latest.version ?? null);
-            setHydratedForUser(userId);
-            return;
+            // Fall through if offline or unauthorized
           }
         }
       } catch {
@@ -312,33 +297,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // Ignore quota errors
       }
-      if (!cloudProjectId && cloudProjectRole !== "viewer") {
-        if (!creatingCloudRef.current) {
-          creatingCloudRef.current = true;
-          try {
-            const serialized = JSON.stringify(project);
-            const res = await saveCloudProject(null, project, {
-              workspaceId: activeWorkspaceId,
-            });
-            lastSyncedJsonRef.current = serialized;
-            lastSyncedProjectRef.current = project;
-            prevBroadcastProjectRef.current = project;
-            cloudVersionRef.current = res.version;
-            setCloudProjectId(res.id);
-            setCloudProjectVersion(res.version);
-            setCloudProjectRole("owner");
-            try {
-              localStorage.setItem(userCloudIdKey(userId), res.id);
-            } catch {
-              // Ignore
-            }
-          } catch {
-            // Keep local draft safe if offline/expired
-          } finally {
-            creatingCloudRef.current = false;
-          }
-        }
-      } else if (cloudProjectId && cloudProjectRole !== "viewer") {
+      if (cloudProjectId && cloudProjectRole !== "viewer") {
         const serialized = JSON.stringify(project);
         if (serialized === lastSyncedJsonRef.current) {
           setSaveState("saved");
@@ -813,6 +772,45 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const createNewCloudProject = useCallback(
+    async (initial?: ProjectData) => {
+      const nextProj = initial || createDefaultProject(lang);
+      const res = await saveCloudProject(null, nextProj);
+      openCloudProject({
+        id: res.id,
+        workspaceId: res.workspaceId ?? null,
+        role: "owner",
+        version: res.version,
+        data: nextProj,
+      });
+    },
+    [lang, openCloudProject]
+  );
+
+  const exitToDashboard = useCallback(() => {
+    wsRef.current?.close();
+    wsRef.current = null;
+    setCloudProjectId(null);
+    setActiveWorkspaceId(null);
+    setCloudProjectRole("owner");
+    setCloudProjectVersion(null);
+    setRoomConnected(false);
+    setRoomUsers([]);
+    setRemoteCursors({});
+    if (userId) {
+      try {
+        localStorage.removeItem(userCloudIdKey(userId));
+      } catch {
+        // Ignore
+      }
+    }
+    if (typeof window !== "undefined") {
+      const next = new URL(window.location.href);
+      next.searchParams.delete("project");
+      window.history.replaceState({}, "", next.pathname + next.search + next.hash);
+    }
+  }, [userId]);
+
   const addGroup = useCallback(
     (name?: string) => {
       updateActivePage((prev) => {
@@ -1167,6 +1165,8 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       resetProject,
       loadProject,
       openCloudProject,
+      createNewCloudProject,
+      exitToDashboard,
       undo,
       redo,
       showNotice,
@@ -1225,6 +1225,8 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       resetProject,
       loadProject,
       openCloudProject,
+      createNewCloudProject,
+      exitToDashboard,
       undo,
       redo,
       showNotice,
