@@ -177,7 +177,7 @@ export function AppBar() {
         >
           <Icon name="folder-open" />
           <span className="inline-flex items-center">
-            <span>Open</span>
+            <span>{t("pg.open")}</span>
             <span className="max-w-0 overflow-hidden opacity-0 group-hover:max-w-[40px] group-hover:opacity-100 transition-all duration-200 whitespace-nowrap">
               &nbsp;.json
             </span>
@@ -192,7 +192,7 @@ export function AppBar() {
         >
           <Icon name="save" />
           <span className="inline-flex items-center">
-            <span>Save</span>
+            <span>{t("pg.save")}</span>
             <span className="max-w-0 overflow-hidden opacity-0 group-hover:max-w-[40px] group-hover:opacity-100 transition-all duration-200 whitespace-nowrap">
               &nbsp;.json
             </span>
