@@ -20,7 +20,6 @@ export function AppBar() {
     addGroup,
     addTask,
     openModal,
-    resetProject,
     loadProject,
     cloudProjectId,
     setCloudProjectId,
@@ -158,16 +157,6 @@ export function AppBar() {
         >
           <Icon name="wand" />
           <span className="lb">{t("pg.sample")}</span>
-        </button>
-        <button
-          type="button"
-          className="abtn icon-always"
-          title={t("pg.new.t")}
-          aria-label={t("pg.new.t")}
-          onClick={resetProject}
-        >
-          <Icon name="file-plus" />
-          <span className="lb">{t("pg.new")}</span>
         </button>
         <input
           ref={fileInputRef}
