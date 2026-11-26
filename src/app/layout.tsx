@@ -11,6 +11,10 @@ export const metadata: Metadata = {
   title: "Timeline Builder Online",
   description:
     "Timeline Builder Online — Susun timeline proyek secara kolaboratif real-time dan export langsung ke PowerPoint editable dengan native shapes.",
+  icons: {
+    icon: "/tlbicon.png",
+    apple: "/tlbicon.png",
+  },
 };
 
 export default function RootLayout({

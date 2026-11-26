@@ -63,7 +63,11 @@ export function PublicLanding() {
       <header className="sticky top-0 z-30 bg-[#0B4622] text-white border-b border-white/10">
         <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <Icon name="brand" className="w-8 h-8" />
+            <img
+              src="/tlbicon.png"
+              alt="Timeline Builder Online"
+              className="w-8 h-8 rounded-lg object-contain"
+            />
             <span className="font-extrabold text-[17px] tracking-tight">
               Timeline Builder Online
             </span>

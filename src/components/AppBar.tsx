@@ -101,7 +101,11 @@ export function AppBar() {
       onKeyDown={handleToolbarKeyDown}
     >
       <div className="brand" title="Timeline Builder Online">
-        <Icon name="brand" className="brand-mark" />
+        <img
+          src="/tlbicon.png"
+          alt="Timeline Builder Online"
+          className="brand-mark rounded-lg object-contain"
+        />
         <div className="brand-text">
           <b>
             Timeline Builder <span className="pro">Online</span>

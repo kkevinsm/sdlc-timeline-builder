@@ -163,7 +163,11 @@ export function AuthModal({ blocking = false }: { blocking?: boolean }) {
           }}
         >
           <div className="-mb-6 w-[56px] h-[56px] drop-shadow-lg">
-            <Icon name="brand" className="w-[56px] h-[56px]" />
+            <img
+              src="/tlbicon.png"
+              alt="Timeline Builder Online"
+              className="w-[56px] h-[56px] rounded-xl object-contain"
+            />
           </div>
         </div>
 
