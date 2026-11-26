@@ -2,6 +2,7 @@
 
 import React, { useCallback, useRef, useState } from "react";
 import { Icon } from "@/components/IconSprite";
+import { SlidingPill } from "@/components/SlidingPill";
 import { authClient } from "@/lib/authClient";
 import { useTimeline } from "@/store/useTimelineStore";
 import type { ProjectData } from "@/types/timeline";
@@ -33,6 +34,7 @@ export function AppBar() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const barRef = useRef<HTMLElement>(null);
+  const langSegRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSaveJson = () => {
@@ -276,7 +278,8 @@ export function AppBar() {
         <span>{t("pg.export")}</span>
       </button>
 
-      <div className="ab-lang" role="group" aria-label="Language">
+      <div ref={langSegRef} className="ab-lang" role="group" aria-label="Language">
+        <SlidingPill containerRef={langSegRef} deps={[lang]} />
         <button
           type="button"
           className={lang === "id" ? "on" : ""}

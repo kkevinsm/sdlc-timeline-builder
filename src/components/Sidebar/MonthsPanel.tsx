@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Icon } from "@/components/IconSprite";
+import { SlidingPill } from "@/components/SlidingPill";
 import { weeksInMonth } from "@/constants/defaults";
 import { MONTH_NAMES_EN, MONTH_NAMES_ID } from "@/constants/theme";
 import { useTimeline } from "@/store/useTimelineStore";
@@ -9,6 +10,7 @@ import type { MonthConfig } from "@/types/timeline";
 
 export function MonthsPanel() {
   const { activePage, lang, updateActivePage, t } = useTimeline();
+  const dmSegRef = useRef<HTMLDivElement>(null);
   const monthNames = lang === "en" ? MONTH_NAMES_EN : MONTH_NAMES_ID;
 
   const firstMonth = activePage.months[0];
@@ -97,7 +99,8 @@ export function MonthsPanel() {
         <div className="sec-b">
           <div className="fg">
             <label>{t("pg.dm.label")}</label>
-            <div className="dm-seg" role="group" aria-label={t("pg.dm.label")}>
+            <div ref={dmSegRef} className="dm-seg" role="group" aria-label={t("pg.dm.label")}>
+              <SlidingPill containerRef={dmSegRef} deps={[activePage.dateMode, lang]} />
               <button
                 type="button"
                 className="btn sm"

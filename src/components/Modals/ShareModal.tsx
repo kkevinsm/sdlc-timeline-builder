@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/IconSprite";
+import { SlidingPill } from "@/components/SlidingPill";
 import {
   addProjectMember,
   authClient,
@@ -48,6 +49,8 @@ export function ShareModal() {
   const [emailInput, setEmailInput] = useState("");
   const [inviteRole, setInviteRole] = useState<"viewer" | "editor">("viewer");
   const [busy, setBusy] = useState(false);
+  const accessSegRef = useRef<HTMLDivElement>(null);
+  const roleSegRef = useRef<HTMLDivElement>(null);
 
   const currentDocName =
     activePage?.title?.trim() || project.name?.trim() || "Timeline Project";
@@ -367,7 +370,18 @@ export function ShareModal() {
                 <div className="text-[12px] font-extrabold uppercase tracking-wider text-[var(--brand-800)]">
                   {lang === "en" ? "Link Access Mode" : "Mode Akses Link"}
                 </div>
-                <div className="inline-flex rounded-lg bg-white p-0.5 border border-[var(--brand-200)]">
+                <div
+                  ref={accessSegRef}
+                  className="relative inline-flex rounded-lg bg-white p-0.5 border border-[var(--brand-200)]"
+                >
+                  <SlidingPill
+                    containerRef={accessSegRef}
+                    deps={[isAnyone, lang, activeModal]}
+                    style={{
+                      backgroundColor: isAnyone ? "var(--brand)" : "#1F1916",
+                      borderRadius: "6px",
+                    }}
+                  />
                   <button
                     type="button"
                     disabled={!isOwner || busy || !info}
@@ -377,11 +391,11 @@ export function ShareModal() {
                         info?.project.generalRole || "viewer"
                       )
                     }
+                    aria-pressed={!isAnyone}
                     style={{
-                      backgroundColor: !isAnyone ? "#1F1916" : "transparent",
                       color: !isAnyone ? "#FFFFFF" : "var(--ink-2)",
                     }}
-                    className="px-2.5 py-1 rounded-md text-[11.5px] font-bold transition-colors"
+                    className="relative z-10 px-2.5 py-1 rounded-md text-[11.5px] font-bold transition-colors"
                   >
                     {lang === "en" ? "Private (Invited)" : "Privat (Diundang)"}
                   </button>
@@ -394,11 +408,11 @@ export function ShareModal() {
                         info?.project.generalRole || "viewer"
                       )
                     }
+                    aria-pressed={isAnyone}
                     style={{
-                      backgroundColor: isAnyone ? "var(--brand)" : "transparent",
                       color: isAnyone ? "#FFFFFF" : "var(--ink-2)",
                     }}
-                    className="px-2.5 py-1 rounded-md text-[11.5px] font-bold transition-colors"
+                    className="relative z-10 px-2.5 py-1 rounded-md text-[11.5px] font-bold transition-colors"
                   >
                     {lang === "en" ? "Anyone with Link" : "Publik via Link"}
                   </button>
@@ -421,22 +435,30 @@ export function ShareModal() {
                 </span>
 
                 {isAnyone && (
-                  <div className="inline-flex rounded-lg bg-white p-0.5 border border-[var(--brand-200)] shrink-0">
+                  <div
+                    ref={roleSegRef}
+                    className="relative inline-flex rounded-lg bg-white p-0.5 border border-[var(--brand-200)] shrink-0"
+                  >
+                    <SlidingPill
+                      containerRef={roleSegRef}
+                      deps={[info?.project.generalRole, isAnyone, lang, activeModal]}
+                      style={{
+                        backgroundColor: "var(--brand-700)",
+                        borderRadius: "6px",
+                      }}
+                    />
                     <button
                       type="button"
                       disabled={!isOwner || busy}
                       onClick={() => handleGeneralChange("anyone", "viewer")}
+                      aria-pressed={info?.project.generalRole === "viewer"}
                       style={{
-                        backgroundColor:
-                          info?.project.generalRole === "viewer"
-                            ? "var(--brand-700)"
-                            : "transparent",
                         color:
                           info?.project.generalRole === "viewer"
                             ? "#FFFFFF"
                             : "var(--ink-2)",
                       }}
-                      className="px-2.5 py-0.5 rounded-md text-[11px] font-bold"
+                      className="relative z-10 px-2.5 py-0.5 rounded-md text-[11px] font-bold transition-colors"
                     >
                       {lang === "en" ? "Viewer" : "Pelihat"}
                     </button>
@@ -444,17 +466,14 @@ export function ShareModal() {
                       type="button"
                       disabled={!isOwner || busy}
                       onClick={() => handleGeneralChange("anyone", "editor")}
+                      aria-pressed={info?.project.generalRole === "editor"}
                       style={{
-                        backgroundColor:
-                          info?.project.generalRole === "editor"
-                            ? "var(--brand-700)"
-                            : "transparent",
                         color:
                           info?.project.generalRole === "editor"
                             ? "#FFFFFF"
                             : "var(--ink-2)",
                       }}
-                      className="px-2.5 py-0.5 rounded-md text-[11px] font-bold"
+                      className="relative z-10 px-2.5 py-0.5 rounded-md text-[11px] font-bold transition-colors"
                     >
                       Editor
                     </button>

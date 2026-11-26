@@ -2,6 +2,7 @@
 
 import React, { useMemo, useRef } from "react";
 import { Icon } from "@/components/IconSprite";
+import { SlidingPill } from "@/components/SlidingPill";
 import { TimelineCard } from "@/components/TimelineCard";
 import {
   MONTH_NAMES_ID,
@@ -103,6 +104,7 @@ export function Stage() {
     t,
   } = useTimeline();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const segRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const model = useMemo(
@@ -136,7 +138,8 @@ export function Stage() {
       {/* Stage Toolbar */}
       <div className="toolbar" role="toolbar" aria-label="Canvas controls">
         <span className="tb-lbl">{t("pg.scale")}</span>
-        <div className="seg" role="group" aria-label={t("pg.scale")}>
+        <div ref={segRef} className="seg" role="group" aria-label={t("pg.scale")}>
+          <SlidingPill containerRef={segRef} deps={[project.mode, lang]} />
           {SCALE_MODES.map((m) => (
             <button
               key={m}
