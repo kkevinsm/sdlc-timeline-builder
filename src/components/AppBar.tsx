@@ -322,10 +322,10 @@ export function AppBar() {
               <span>{roomUsers.length}</span>
             </div>
           )}
-          <div className="inline-flex items-center rounded-full bg-[#C2E7FF] text-[#001D35] overflow-hidden shadow-sm">
+          <div className="inline-flex items-center rounded-full bg-white text-[#7C2D12] overflow-hidden shadow-sm border border-white/60">
             <button
               type="button"
-              className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-[12.5px] font-bold hover:bg-[#B3DCF8] transition-colors"
+              className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-[12.5px] font-bold hover:bg-[#FFF7ED] transition-colors"
               title={lang === "en" ? "Share timeline" : "Bagikan timeline"}
               onClick={() => openModal("team")}
             >
@@ -335,10 +335,10 @@ export function AppBar() {
               </svg>
               <span>{lang === "en" ? "Share" : "Bagikan"}</span>
             </button>
-            <span className="w-px h-4 bg-[#001D35]/20" />
+            <span className="w-px h-4 bg-[#7C2D12]/20" />
             <button
               type="button"
-              className="px-2 py-1.5 hover:bg-[#B3DCF8] transition-colors"
+              className="px-2 py-1.5 hover:bg-[#FFF7ED] transition-colors"
               title={lang === "en" ? "Copy project link" : "Salin link proyek"}
               onClick={async () => {
                 if (!cloudProjectId) {

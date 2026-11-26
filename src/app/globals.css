@@ -242,9 +242,10 @@ textarea {
 }
 
 .abtn.cta {
-  background: linear-gradient(180deg, #FF8034, var(--accent-600));
-  border-color: rgba(0, 0, 0, 0.05);
-  box-shadow: 0 3px 10px rgba(255, 106, 19, 0.38);
+  background: #1F1916;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
   padding: 0 15px;
   font-weight: 700;
 }
@@ -268,8 +269,7 @@ textarea {
 
 @media (hover: hover) {
   .abtn.cta:hover:not(:disabled) {
-    filter: brightness(1.06);
-    background: linear-gradient(180deg, #FF8034, var(--accent-600));
+    background: #2E2520;
   }
 }
 
