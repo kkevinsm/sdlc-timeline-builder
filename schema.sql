@@ -82,12 +82,23 @@ CREATE TABLE IF NOT EXISTS projects (
   data TEXT NOT NULL,
   version INTEGER NOT NULL DEFAULT 1,
   lastEditedBy TEXT,
+  generalAccess TEXT NOT NULL DEFAULT 'restricted',
+  generalRole TEXT NOT NULL DEFAULT 'viewer',
   createdAt TEXT NOT NULL,
   updatedAt TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS project_members (
+  projectId TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  userId TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'viewer',
+  addedAt TEXT NOT NULL,
+  PRIMARY KEY (projectId, userId)
+);
+
 CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(userId, updatedAt DESC);
 CREATE INDEX IF NOT EXISTS idx_projects_ws ON projects(workspaceId, updatedAt DESC);
+CREATE INDEX IF NOT EXISTS idx_project_members_userId ON project_members(userId);
 CREATE INDEX IF NOT EXISTS idx_ws_members_user ON workspace_members(userId);
 CREATE INDEX IF NOT EXISTS idx_ws_invites_token ON workspace_invites(token);
 CREATE INDEX IF NOT EXISTS idx_session_token ON session(token);

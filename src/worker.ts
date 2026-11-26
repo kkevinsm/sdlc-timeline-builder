@@ -214,6 +214,8 @@ async function getProjectRowAndRole(
     data: string;
     version: number;
     lastEditedBy: string | null;
+    generalAccess: "restricted" | "anyone";
+    generalRole: "viewer" | "editor";
     createdAt: string;
     updatedAt: string;
   };
@@ -221,7 +223,7 @@ async function getProjectRowAndRole(
 } | null> {
   const row = await db
     .prepare(
-      "SELECT id, userId, workspaceId, name, data, version, lastEditedBy, createdAt, updatedAt FROM projects WHERE id = ?"
+      "SELECT id, userId, workspaceId, name, data, version, lastEditedBy, generalAccess, generalRole, createdAt, updatedAt FROM projects WHERE id = ?"
     )
     .bind(projectId)
     .first<{
@@ -232,17 +234,37 @@ async function getProjectRowAndRole(
       data: string;
       version: number;
       lastEditedBy: string | null;
+      generalAccess: "restricted" | "anyone";
+      generalRole: "viewer" | "editor";
       createdAt: string;
       updatedAt: string;
     }>();
 
   if (!row) return null;
-  if (!row.workspaceId) {
-    return row.userId === userId ? { row, role: "owner" } : null;
+  if (row.userId === userId) {
+    return { row, role: "owner" };
   }
-  const role = await getWorkspaceRole(db, row.workspaceId, userId);
-  if (!role) return null;
-  return { row, role };
+
+  const direct = await db
+    .prepare(
+      "SELECT role FROM project_members WHERE projectId = ? AND userId = ?"
+    )
+    .bind(projectId, userId)
+    .first<{ role: MemberRole }>();
+  if (direct?.role) {
+    return { row, role: direct.role };
+  }
+
+  if (row.workspaceId) {
+    const wsRole = await getWorkspaceRole(db, row.workspaceId, userId);
+    if (wsRole) return { row, role: wsRole };
+  }
+
+  if (row.generalAccess === "anyone") {
+    return { row, role: row.generalRole === "editor" ? "editor" : "viewer" };
+  }
+
+  return null;
 }
 
 async function handleWorkspaceRoutes(
@@ -554,20 +576,26 @@ const worker = {
         return handleWorkspaceRoutes(request, url, env, userId);
       }
 
-      // Projects API (personal + workspace-shared)
+      // Projects API (personal + direct-shared + workspace-shared)
       if (url.pathname === "/api/projects" && request.method === "GET") {
         const res = await env.DB.prepare(
-          `SELECT p.id, p.name, p.workspaceId, p.version, p.lastEditedBy, p.createdAt, p.updatedAt,
+          `SELECT p.id, p.name, p.workspaceId, p.version, p.lastEditedBy, p.generalAccess, p.generalRole, p.createdAt, p.updatedAt,
                   w.name AS workspaceName,
-                  COALESCE(wm.role, 'owner') AS role
+                  CASE
+                    WHEN p.userId = ? THEN 'owner'
+                    WHEN pm.role IS NOT NULL THEN pm.role
+                    ELSE COALESCE(wm.role, 'viewer')
+                  END AS role
            FROM projects p
            LEFT JOIN workspaces w ON w.id = p.workspaceId
+           LEFT JOIN project_members pm ON pm.projectId = p.id AND pm.userId = ?
            LEFT JOIN workspace_members wm ON wm.workspaceId = p.workspaceId AND wm.userId = ?
-           WHERE (p.workspaceId IS NULL AND p.userId = ?)
-              OR (p.workspaceId IS NOT NULL AND wm.userId = ?)
+           WHERE p.userId = ?
+              OR pm.userId IS NOT NULL
+              OR (p.workspaceId IS NOT NULL AND wm.userId IS NOT NULL)
            ORDER BY p.updatedAt DESC`
         )
-          .bind(userId, userId, userId)
+          .bind(userId, userId, userId, userId)
           .all();
 
         return jsonRes({ projects: res.results || [] });
@@ -670,6 +698,169 @@ const worker = {
         }
       }
 
+      // Per-project Google-Sheets-style sharing routes
+      const sharingMatch = url.pathname.match(
+        /^\/api\/projects\/([a-zA-Z0-9_-]+)\/sharing(?:\/(members|general)(?:\/([a-zA-Z0-9_-]+))?)?$/
+      );
+      if (sharingMatch) {
+        const projectId = sharingMatch[1];
+        const subRoute = sharingMatch[2];
+        const targetMemberId = sharingMatch[3];
+
+        const access = await getProjectRowAndRole(env.DB, projectId, userId);
+        if (!access) return jsonRes({ error: "Not found" }, 404);
+
+        if (!subRoute && request.method === "GET") {
+          const ownerRow = await env.DB.prepare(
+            "SELECT id AS userId, name, email FROM user WHERE id = ?"
+          )
+            .bind(access.row.userId)
+            .first<{ userId: string; name: string; email: string }>();
+
+          const membersRes = await env.DB.prepare(
+            `SELECT pm.userId, u.name, u.email, pm.role, pm.addedAt
+             FROM project_members pm
+             JOIN user u ON u.id = pm.userId
+             WHERE pm.projectId = ?
+             ORDER BY pm.addedAt ASC`
+          )
+            .bind(projectId)
+            .all();
+
+          return jsonRes({
+            project: {
+              id: access.row.id,
+              name: access.row.name,
+              generalAccess: access.row.generalAccess || "restricted",
+              generalRole: access.row.generalRole || "viewer",
+              role: access.role,
+            },
+            owner: ownerRow || {
+              userId: access.row.userId,
+              name: "Owner",
+              email: "",
+            },
+            members: membersRes.results || [],
+          });
+        }
+
+        if (access.role !== "owner") {
+          return jsonRes(
+            { error: "Only the project owner can change sharing settings" },
+            403
+          );
+        }
+
+        if (subRoute === "members" && !targetMemberId && request.method === "POST") {
+          const body = (await request.json().catch(() => null)) as {
+            email?: string;
+            role?: string;
+          } | null;
+          const email = String(body?.email || "").trim().toLowerCase();
+          const role = body?.role === "editor" ? "editor" : "viewer";
+          if (!email) return jsonRes({ error: "Email is required" }, 400);
+
+          const targetUser = await env.DB.prepare(
+            "SELECT id, name, email FROM user WHERE LOWER(email) = ?"
+          )
+            .bind(email)
+            .first<{ id: string; name: string; email: string }>();
+          if (!targetUser) {
+            return jsonRes(
+              {
+                error:
+                  "User with this email is not registered yet. Ask them to sign in once, or use 'Anyone with the link'.",
+              },
+              404
+            );
+          }
+          if (targetUser.id === access.row.userId) {
+            return jsonRes({ error: "User is already the owner" }, 400);
+          }
+
+          const now = new Date().toISOString();
+          await env.DB.prepare(
+            `INSERT INTO project_members (projectId, userId, role, addedAt)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT(projectId, userId) DO UPDATE SET role = excluded.role`
+          )
+            .bind(projectId, targetUser.id, role, now)
+            .run();
+
+          return jsonRes(
+            {
+              ok: true,
+              member: {
+                userId: targetUser.id,
+                name: targetUser.name,
+                email: targetUser.email,
+                role,
+                addedAt: now,
+              },
+            },
+            201
+          );
+        }
+
+        if (subRoute === "members" && targetMemberId && request.method === "PATCH") {
+          const body = (await request.json().catch(() => null)) as {
+            role?: string;
+          } | null;
+          const role = body?.role === "editor" ? "editor" : "viewer";
+          await env.DB.prepare(
+            "UPDATE project_members SET role = ? WHERE projectId = ? AND userId = ?"
+          )
+            .bind(role, projectId, targetMemberId)
+            .run();
+          return jsonRes({ ok: true, role });
+        }
+
+        if (subRoute === "members" && targetMemberId && request.method === "DELETE") {
+          await env.DB.prepare(
+            "DELETE FROM project_members WHERE projectId = ? AND userId = ?"
+          )
+            .bind(projectId, targetMemberId)
+            .run();
+          return jsonRes({ ok: true });
+        }
+
+        if (subRoute === "general" && request.method === "PATCH") {
+          const body = (await request.json().catch(() => null)) as {
+            generalAccess?: string;
+            generalRole?: string;
+            name?: string;
+          } | null;
+          const generalAccess =
+            body?.generalAccess === "anyone" ? "anyone" : "restricted";
+          const generalRole = body?.generalRole === "editor" ? "editor" : "viewer";
+          const nextName =
+            body?.name !== undefined
+              ? String(body.name).trim().slice(0, 140) || access.row.name
+              : access.row.name;
+
+          await env.DB.prepare(
+            "UPDATE projects SET generalAccess = ?, generalRole = ?, name = ?, updatedAt = ? WHERE id = ?"
+          )
+            .bind(
+              generalAccess,
+              generalRole,
+              nextName,
+              new Date().toISOString(),
+              projectId
+            )
+            .run();
+
+          return jsonRes({
+            ok: true,
+            generalAccess,
+            generalRole,
+            name: nextName,
+          });
+        }
+
+        return jsonRes({ error: "Method not allowed" }, 405);
+      }
+
       const id = url.pathname
         .replace("/api/projects/", "")
         .replace(/[^a-zA-Z0-9_-]/g, "");
@@ -684,6 +875,8 @@ const worker = {
           name: access.row.name,
           workspaceId: access.row.workspaceId,
           role: access.role,
+          generalAccess: access.row.generalAccess || "restricted",
+          generalRole: access.row.generalRole || "viewer",
           version: access.row.version,
           lastEditedBy: access.row.lastEditedBy,
           createdAt: access.row.createdAt,

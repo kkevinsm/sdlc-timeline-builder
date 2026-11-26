@@ -9,7 +9,7 @@ import { CloudProjectsModal } from "@/components/Modals/CloudProjectsModal";
 import { ExportModal } from "@/components/Modals/ExportModal";
 import { HelpModal } from "@/components/Modals/HelpModal";
 import { PlanWizardModal } from "@/components/Modals/PlanWizardModal";
-import { TeamShareModal } from "@/components/Modals/TeamShareModal";
+import { ShareModal } from "@/components/Modals/ShareModal";
 import { PageTabs } from "@/components/PageTabs";
 import { PresentationMode } from "@/components/PresentationMode";
 import { Sidebar } from "@/components/Sidebar/Sidebar";
@@ -220,7 +220,7 @@ function WorkspaceShell() {
       <HelpModal />
       <AuthModal />
       <CloudProjectsModal />
-      <TeamShareModal />
+      <ShareModal />
       {notice && (
         <div
           role="status"

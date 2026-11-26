@@ -318,15 +318,43 @@ export function AppBar() {
               <span>{roomUsers.length}</span>
             </div>
           )}
-          <button
-            type="button"
-            className="abtn light"
-            title={lang === "en" ? "Team Workspace & Invites" : "Team Workspace & Undangan"}
-            onClick={() => openModal("team")}
-          >
-            <Icon name="user" size="sm" />
-            <span className="lb">Team</span>
-          </button>
+          <div className="inline-flex items-center rounded-full bg-[#C2E7FF] text-[#001D35] overflow-hidden shadow-sm">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 text-[12.5px] font-bold hover:bg-[#B3DCF8] transition-colors"
+              title={lang === "en" ? "Share timeline" : "Bagikan timeline"}
+              onClick={() => openModal("team")}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span>{lang === "en" ? "Share" : "Bagikan"}</span>
+            </button>
+            <span className="w-px h-4 bg-[#001D35]/20" />
+            <button
+              type="button"
+              className="px-2 py-1.5 hover:bg-[#B3DCF8] transition-colors"
+              title={lang === "en" ? "Copy project link" : "Salin link proyek"}
+              onClick={async () => {
+                if (!cloudProjectId) {
+                  openModal("team");
+                  return;
+                }
+                const link = `${window.location.origin}/?project=${encodeURIComponent(cloudProjectId)}`;
+                try {
+                  await navigator.clipboard.writeText(link);
+                  showNotice(lang === "en" ? "Link copied!" : "Link disalin!");
+                } catch {
+                  showNotice(link);
+                }
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7 10l5 5 5-5z" />
+              </svg>
+            </button>
+          </div>
           <div className="relative">
           <button
             type="button"

@@ -265,3 +265,119 @@ export async function acceptWorkspaceInvite(token: string): Promise<{
     role: MemberRole;
   };
 }
+
+export type GeneralAccess = "restricted" | "anyone";
+
+export interface ProjectShareMember {
+  userId: string;
+  name: string;
+  email: string;
+  role: "editor" | "viewer";
+  addedAt: string;
+}
+
+export interface ProjectSharingInfo {
+  project: {
+    id: string;
+    name: string;
+    generalAccess: GeneralAccess;
+    generalRole: "editor" | "viewer";
+    role: MemberRole;
+  };
+  owner: {
+    userId: string;
+    name: string;
+    email: string;
+  };
+  members: ProjectShareMember[];
+}
+
+export async function getProjectSharing(
+  projectId: string
+): Promise<ProjectSharingInfo> {
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/sharing`,
+    { credentials: "include" }
+  );
+  if (!res.ok) throw new Error("Failed to load sharing settings");
+  return (await res.json()) as ProjectSharingInfo;
+}
+
+export async function addProjectMember(
+  projectId: string,
+  email: string,
+  role: "editor" | "viewer"
+): Promise<ProjectShareMember> {
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/sharing/members`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, role }),
+    }
+  );
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error || "Failed to add person");
+  }
+  const json = (await res.json()) as { member: ProjectShareMember };
+  return json.member;
+}
+
+export async function updateProjectMemberRole(
+  projectId: string,
+  memberUserId: string,
+  role: "editor" | "viewer"
+): Promise<void> {
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/sharing/members/${encodeURIComponent(memberUserId)}`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role }),
+    }
+  );
+  if (!res.ok) throw new Error("Failed to update role");
+}
+
+export async function removeProjectMember(
+  projectId: string,
+  memberUserId: string
+): Promise<void> {
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/sharing/members/${encodeURIComponent(memberUserId)}`,
+    { method: "DELETE", credentials: "include" }
+  );
+  if (!res.ok) throw new Error("Failed to remove access");
+}
+
+export async function updateProjectGeneralAccess(
+  projectId: string,
+  payload: {
+    generalAccess: GeneralAccess;
+    generalRole: "editor" | "viewer";
+    name?: string;
+  }
+): Promise<{
+  generalAccess: GeneralAccess;
+  generalRole: "editor" | "viewer";
+  name: string;
+}> {
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/sharing/general`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  if (!res.ok) throw new Error("Failed to update access");
+  return (await res.json()) as {
+    generalAccess: GeneralAccess;
+    generalRole: "editor" | "viewer";
+    name: string;
+  };
+}
