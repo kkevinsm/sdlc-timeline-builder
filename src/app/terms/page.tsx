@@ -9,7 +9,7 @@ export default function TermsPage() {
           <div>
             <h1 className="text-2xl font-extrabold">Syarat &amp; Ketentuan</h1>
             <p className="text-sm text-[#6B7A72] mt-1">
-              Timeline Builder Pro — WakeLabs (tlb.web.id)
+              Timeline Builder Online — WakeLabs (tlb.web.id)
             </p>
           </div>
           <Link
@@ -22,7 +22,7 @@ export default function TermsPage() {
 
         <div className="mt-6 space-y-4 text-sm leading-relaxed text-[#3A4841]">
           <p>
-            <strong>1. Penggunaan Layanan:</strong> Timeline Builder Pro oleh
+            <strong>1. Penggunaan Layanan:</strong> Timeline Builder Online oleh
             WakeLabs disediakan untuk membantu penyusunan timeline proyek dan
             ekspor slide presentasi (<code>.pptx</code> / <code>.png</code>).
           </p>

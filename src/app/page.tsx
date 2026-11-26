@@ -12,6 +12,7 @@ import { PlanWizardModal } from "@/components/Modals/PlanWizardModal";
 import { ShareModal } from "@/components/Modals/ShareModal";
 import { PageTabs } from "@/components/PageTabs";
 import { PresentationMode } from "@/components/PresentationMode";
+import { PublicLanding } from "@/components/PublicLanding";
 import { Sidebar } from "@/components/Sidebar/Sidebar";
 import { Stage } from "@/components/Stage";
 import {
@@ -199,7 +200,7 @@ function WorkspaceShell() {
     return (
       <>
         <IconSprite />
-        <AuthModal blocking />
+        <PublicLanding />
       </>
     );
   }

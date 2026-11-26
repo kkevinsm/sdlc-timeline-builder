@@ -1,7 +1,7 @@
 import type { LangCode } from "@/types/timeline";
 
 const ID = {
-  "app.title": "Timeline Builder Pro — WakeLabs",
+  "app.title": "Timeline Builder Online",
   "pg.group": "Group",
   "pg.addgroup.t": "Tambah group (G)",
   "pg.task": "Task",
@@ -174,7 +174,7 @@ const ID = {
 } as const;
 
 const EN: Record<keyof typeof ID, string> = {
-  "app.title": "Timeline Builder Pro — WakeLabs",
+  "app.title": "Timeline Builder Online",
   "pg.group": "Group",
   "pg.addgroup.t": "Add group (G)",
   "pg.task": "Task",

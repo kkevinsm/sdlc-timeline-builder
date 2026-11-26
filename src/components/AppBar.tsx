@@ -97,14 +97,14 @@ export function AppBar() {
       id="appbar"
       ref={barRef}
       role="toolbar"
-      aria-label="Timeline Builder Pro actions"
+      aria-label="Timeline Builder Online actions"
       onKeyDown={handleToolbarKeyDown}
     >
-      <div className="brand" title="Timeline Builder Pro — WakeLabs">
+      <div className="brand" title="Timeline Builder Online">
         <Icon name="brand" className="brand-mark" />
         <div className="brand-text">
           <b>
-            Timeline Builder <span className="pro">Pro</span>
+            Timeline Builder <span className="pro">Online</span>
           </b>
           <small>by WakeLabs</small>
         </div>

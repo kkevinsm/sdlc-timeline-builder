@@ -9,7 +9,7 @@ export default function PrivacyPage() {
           <div>
             <h1 className="text-2xl font-extrabold">Kebijakan Privasi</h1>
             <p className="text-sm text-[#6B7A72] mt-1">
-              Timeline Builder Pro — WakeLabs (tlb.web.id)
+              Timeline Builder Online — WakeLabs (tlb.web.id)
             </p>
           </div>
           <Link
