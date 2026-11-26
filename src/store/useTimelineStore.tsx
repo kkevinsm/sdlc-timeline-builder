@@ -93,6 +93,7 @@ interface TimelineContextValue {
   updateBarAndCascade: (id: string, barPatch: Partial<NonNullable<TimelineRow["bar"]>>) => void;
   addDependency: (taskId: string, predId: string, type: DepType) => void;
   removeDependency: (taskId: string, predId: string) => void;
+  recalculateSchedule: () => void;
   deleteRow: (id: string) => void;
   duplicateRow: (id: string) => void;
   addTaskAfter: (afterId: string) => void;
@@ -725,17 +726,24 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
     (id: number, name: string) => {
       const trimmed = name.trim();
       if (!trimmed) return;
-      commitProject(
-        (prev) => ({
+      commitProject((prev) => {
+        const next = {
           ...prev,
           pages: prev.pages.map((p) =>
             p.id === id ? { ...p, name: trimmed } : p
           ),
-        }),
-        true
-      );
+        };
+        if (userId) {
+          try {
+            localStorage.setItem(userProjKey(userId), JSON.stringify(next));
+          } catch {
+            // Ignore quota errors
+          }
+        }
+        return next;
+      }, true);
     },
-    [commitProject]
+    [commitProject, userId]
   );
 
   const resetProject = useCallback(() => {
@@ -934,6 +942,21 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
     },
     [updateActivePage]
   );
+
+  const recalculateSchedule = useCallback(() => {
+    updateActivePage((prev) => {
+      const forcedPage = { ...prev, cascade: true };
+      let rows = prev.rows.map((r) =>
+        r.bar ? { ...r, bar: { ...r.bar } } : { ...r }
+      );
+      for (const r of prev.rows) {
+        if (r.type === "task") {
+          rows = cascadeShiftRows(forcedPage, rows, r.id);
+        }
+      }
+      return { ...prev, rows };
+    }, true);
+  }, [updateActivePage]);
 
   const deleteRow = useCallback(
     (id: string) => {
@@ -1154,6 +1177,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       updateBarAndCascade,
       addDependency,
       removeDependency,
+      recalculateSchedule,
       deleteRow,
       duplicateRow,
       addTaskAfter,
@@ -1214,6 +1238,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       updateBarAndCascade,
       addDependency,
       removeDependency,
+      recalculateSchedule,
       deleteRow,
       duplicateRow,
       addTaskAfter,

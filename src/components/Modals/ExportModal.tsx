@@ -18,7 +18,13 @@ const STYLE_ORDER: SlideStyleId[] = [
 ];
 
 export function ExportModal() {
-  const { project, activePage, activeModal, closeModal, lang, showNotice } =
+  const { activeModal, activePage } = useTimeline();
+  if (activeModal !== "export") return null;
+  return <ExportModalInner key={activePage.id} />;
+}
+
+function ExportModalInner() {
+  const { project, activePage, closeModal, lang, showNotice } =
     useTimeline();
 
   const [style, setStyle] = useState<SlideStyleId>(
@@ -44,8 +50,6 @@ export function ExportModal() {
     () => buildTimelineModel(activePage, project.mode, expLang),
     [activePage, project.mode, expLang]
   );
-
-  if (activeModal !== "export") return null;
 
   const applyStylePreset = (id: SlideStyleId) => {
     setStyle(id);
@@ -113,7 +117,15 @@ export function ExportModal() {
     const safeName = (activePage.title || "timeline")
       .toLowerCase()
       .replace(/[^a-z0-9-_]+/g, "-");
-    exportTimelineToPng(activeModel, expLang, `${safeName}.png`);
+    exportTimelineToPng(activeModel, expLang, `${safeName}.png`, {
+      showDuration,
+      showStatus,
+      showOwner,
+      showDeps,
+      showToday,
+      showLegend,
+      showRail,
+    });
     showNotice(
       lang === "en" ? "PNG downloaded!" : "Gambar PNG berhasil diunduh!"
     );

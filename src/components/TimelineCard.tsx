@@ -429,30 +429,36 @@ export function TimelineCard({
       {/* Legend */}
       {page.showLegend && (
         <div className="tl-legend">
-          <span className="text-[10px] font-extrabold tracking-wider text-[var(--muted)] uppercase">
-            STATUS
-          </span>
-          {(["done", "inprogress", "atrisk", "notstarted"] as const).map(
-            (st) => (
-              <span key={st} className="lg">
-                <span
-                  className="dot"
-                  style={{ background: STATUS_META[st].color }}
-                />
-                <span>{t(`st.${st}.label`)}</span>
-              </span>
-            )
-          )}
-          <span className="lg">
-            <span className="text-[#E09200] leading-none">★</span>
-            <span>Milestone</span>
-          </span>
-          {page.showToday && tu != null && (
-            <span className="text-[var(--muted)] font-medium">
-              ¦ {lang === "en" ? "This week" : "Minggu ini"} ·{" "}
-              {currentPeriodBadge}
+          <div
+            className={`flex items-center flex-wrap gap-x-4 gap-y-1.5 ${
+              page.rows.length > 0 ? "sticky left-[22px] z-20 bg-white pr-3" : ""
+            }`}
+          >
+            <span className="text-[10px] font-extrabold tracking-wider text-[var(--muted)] uppercase">
+              STATUS
             </span>
-          )}
+            {(["done", "inprogress", "atrisk", "notstarted"] as const).map(
+              (st) => (
+                <span key={st} className="lg">
+                  <span
+                    className="dot"
+                    style={{ background: STATUS_META[st].color }}
+                  />
+                  <span>{t(`st.${st}.label`)}</span>
+                </span>
+              )
+            )}
+            <span className="lg">
+              <span className="text-[#E09200] leading-none">★</span>
+              <span>Milestone</span>
+            </span>
+            {page.showToday && tu != null && (
+              <span className="text-[var(--muted)] font-medium">
+                ¦ {lang === "en" ? "This week" : "Minggu ini"} ·{" "}
+                {currentPeriodBadge}
+              </span>
+            )}
+          </div>
           {model.overall != null && (
             <span className="ml-auto font-extrabold text-[var(--brand-700)] bg-[var(--brand-50)] px-2.5 py-0.5 rounded-full">
               {lang === "en" ? "Overall" : "Total"}: {model.overall}%
@@ -471,7 +477,7 @@ export function TimelineCard({
           {/* Sticky Header Row */}
           <div className="flex border-b border-[#D8E0DB]">
             <div
-              className="sticky left-0 z-40 flex shrink-0 border-r border-white/20 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)]"
+              className={`${page.rows.length > 0 ? "sticky left-0 z-40" : "relative"} flex shrink-0 border-r border-white/20 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)]`}
               style={{
                 width: fixedColsWidth,
                 background: page.accent,
@@ -740,7 +746,7 @@ export function TimelineCard({
                   style={{ height: page.rh }}
                 >
                   <div
-                    className="sticky left-0 z-30 shrink-0 border-r border-[var(--line-2)] bg-white"
+                    className={`${page.rows.length > 0 ? "sticky left-0 z-30" : "relative"} shrink-0 border-r border-[var(--line-2)] bg-white`}
                     style={{
                       width: fixedColsWidth,
                     }}
