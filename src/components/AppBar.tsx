@@ -170,23 +170,33 @@ export function AppBar() {
         />
         <button
           type="button"
-          className="abtn"
-          title={t("pg.open.t")}
-          aria-label={t("pg.open.t")}
+          className="abtn group"
+          title={lang === "en" ? "Open .json file" : "Buka file .json"}
+          aria-label="Open .json"
           onClick={() => fileInputRef.current?.click()}
         >
           <Icon name="folder-open" />
-          <span>Open .json</span>
+          <span className="inline-flex items-center">
+            <span>Open</span>
+            <span className="max-w-0 overflow-hidden opacity-0 group-hover:max-w-[40px] group-hover:opacity-100 transition-all duration-200 whitespace-nowrap">
+              &nbsp;.json
+            </span>
+          </span>
         </button>
         <button
           type="button"
-          className="abtn"
-          title={t("pg.save.t")}
-          aria-label={t("pg.save.t")}
+          className="abtn group"
+          title={lang === "en" ? "Save .json file" : "Simpan file .json"}
+          aria-label="Save .json"
           onClick={handleSaveJson}
         >
           <Icon name="save" />
-          <span>Save .json</span>
+          <span className="inline-flex items-center">
+            <span>Save</span>
+            <span className="max-w-0 overflow-hidden opacity-0 group-hover:max-w-[40px] group-hover:opacity-100 transition-all duration-200 whitespace-nowrap">
+              &nbsp;.json
+            </span>
+          </span>
         </button>
       </div>
 
