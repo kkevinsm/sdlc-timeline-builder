@@ -106,7 +106,7 @@ export function AuthModal({ blocking = false }: { blocking?: boolean }) {
     <div
       className={`fixed inset-0 z-[2000] flex items-center justify-center p-5 ${
         blocking
-          ? "bg-[radial-gradient(900px_300px_at_20%_-10%,rgba(52,184,106,0.22),transparent_60%),linear-gradient(135deg,#07331A,#0B4622_55%,#15733A)]"
+          ? "bg-[radial-gradient(900px_300px_at_20%_-10%,rgba(251,146,60,0.24),transparent_60%),linear-gradient(135deg,#431407,#9A3412_55%,#EA580C)]"
           : "bg-[#09140E]/45 backdrop-blur-[3px]"
       }`}
       onClick={blocking ? undefined : closeModal}
@@ -159,14 +159,14 @@ export function AuthModal({ blocking = false }: { blocking?: boolean }) {
           className="h-[84px] flex justify-center items-end shrink-0"
           style={{
             background:
-              "radial-gradient(rgba(27,122,62,.13) 1px,transparent 1.3px) 0 0/16px 16px,linear-gradient(180deg,#DCF0E3,#F2F9F4 72%,#fff)",
+              "radial-gradient(rgba(234,88,12,.14) 1px,transparent 1.3px) 0 0/16px 16px,linear-gradient(180deg,#FFEDD5,#FFF7ED 72%,#fff)",
           }}
         >
           <div className="-mb-6 w-[56px] h-[56px] drop-shadow-lg">
             <img
               src="/tlbicon.png"
               alt="Timeline Builder Online"
-              className="w-[56px] h-[56px] rounded-xl object-contain"
+              className="w-[56px] h-[56px] rounded-xl object-contain bg-white p-1 shadow-sm"
             />
           </div>
         </div>

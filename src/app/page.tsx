@@ -186,11 +186,11 @@ function WorkspaceShell() {
     return (
       <>
         <IconSprite />
-        <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 bg-[linear-gradient(135deg,#07331A,#0B4622_55%,#15733A)] text-white">
+        <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 bg-[linear-gradient(135deg,#431407,#9A3412_55%,#EA580C)] text-white">
           <img
             src="/tlbicon.png"
             alt="Timeline Builder Online"
-            className="w-12 h-12 rounded-xl object-contain animate-pulse"
+            className="w-12 h-12 rounded-xl object-contain bg-white/95 p-1 shadow-md animate-pulse"
           />
           <span className="text-[13px] font-semibold text-white/80">
             {lang === "en" ? "Checking session..." : "Memeriksa sesi..."}

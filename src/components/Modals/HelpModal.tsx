@@ -45,7 +45,7 @@ export function HelpModal() {
                 {lang === "en" ? "Keyboard Shortcuts & Tips" : "Shortcut Keyboard & Tips"}
               </h2>
               <p className="text-[11.5px] text-[var(--muted)]">
-                Timeline Builder Pro (Full Pro Edition)
+                Timeline Builder Online
               </p>
             </div>
           </div>

@@ -104,7 +104,7 @@ export function AppBar() {
         <img
           src="/tlbicon.png"
           alt="Timeline Builder Online"
-          className="brand-mark rounded-lg object-contain"
+          className="brand-mark rounded-xl object-contain bg-white/95 p-0.5 shadow-sm"
         />
         <div className="brand-text">
           <b>
@@ -306,14 +306,14 @@ export function AppBar() {
                 {roomUsers.slice(0, 4).map((u) => (
                   <span
                     key={u.userId}
-                    className="w-5 h-5 rounded-full text-[10px] font-extrabold text-white grid place-items-center ring-2 ring-[#0E5A2B]"
+                    className="w-5 h-5 rounded-full text-[10px] font-extrabold text-white grid place-items-center ring-2 ring-[#9A3412]"
                     style={{ backgroundColor: u.color }}
                   >
                     {(u.name || "U")[0].toUpperCase()}
                   </span>
                 ))}
                 {roomUsers.length > 4 && (
-                  <span className="w-5 h-5 rounded-full text-[9.5px] font-extrabold bg-white text-[var(--brand-700)] grid place-items-center ring-2 ring-[#0E5A2B]">
+                  <span className="w-5 h-5 rounded-full text-[9.5px] font-extrabold bg-white text-[var(--brand-700)] grid place-items-center ring-2 ring-[#9A3412]">
                     +{roomUsers.length - 4}
                   </span>
                 )}

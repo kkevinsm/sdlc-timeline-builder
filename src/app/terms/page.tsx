@@ -14,7 +14,7 @@ export default function TermsPage() {
           </div>
           <Link
             href="/"
-            className="px-3.5 py-2 rounded-lg bg-[#1B7A3E] text-white text-xs font-bold"
+            className="px-3.5 py-2 rounded-lg bg-[#EA580C] hover:bg-[#C2410C] text-white text-xs font-bold"
           >
             Kembali ke Aplikasi
           </Link>

@@ -60,13 +60,13 @@ export function PublicLanding() {
   return (
     <div className="min-h-screen flex flex-col bg-[#F5F8F6] text-[#111C16]">
       {/* Public Header */}
-      <header className="sticky top-0 z-30 bg-[#0B4622] text-white border-b border-white/10">
+      <header className="sticky top-0 z-30 bg-[#9A3412] text-white border-b border-white/10">
         <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             <img
               src="/tlbicon.png"
               alt="Timeline Builder Online"
-              className="w-8 h-8 rounded-lg object-contain"
+              className="w-8 h-8 rounded-lg object-contain bg-white/95 p-0.5 shadow-sm"
             />
             <span className="font-extrabold text-[17px] tracking-tight">
               Timeline Builder Online
@@ -92,7 +92,7 @@ export function PublicLanding() {
                 type="button"
                 onClick={() => setLang("id")}
                 className={`px-2 py-0.5 text-[11px] font-bold rounded-md ${
-                  lang === "id" ? "bg-white text-[#0B4622]" : "text-white/80"
+                  lang === "id" ? "bg-white text-[#9A3412]" : "text-white/80"
                 }`}
               >
                 ID
@@ -101,7 +101,7 @@ export function PublicLanding() {
                 type="button"
                 onClick={() => setLang("en")}
                 className={`px-2 py-0.5 text-[11px] font-bold rounded-md ${
-                  lang === "en" ? "bg-white text-[#0B4622]" : "text-white/80"
+                  lang === "en" ? "bg-white text-[#9A3412]" : "text-white/80"
                 }`}
               >
                 EN
@@ -111,7 +111,7 @@ export function PublicLanding() {
             <button
               type="button"
               onClick={() => openModal("auth")}
-              className="px-4 py-2 rounded-full bg-white text-[#0B4622] font-bold text-[13px] hover:bg-[#EAF5EE] transition-colors shadow-sm"
+              className="px-4 py-2 rounded-full bg-white text-[#9A3412] font-bold text-[13px] hover:bg-[#FFF7ED] transition-colors shadow-sm"
             >
               {lang === "en" ? "Sign in" : "Masuk"}
             </button>
@@ -121,7 +121,7 @@ export function PublicLanding() {
 
       {/* Hero Section */}
       <main className="flex-1">
-        <section className="bg-[radial-gradient(900px_320px_at_20%_-10%,rgba(52,184,106,0.22),transparent_60%),linear-gradient(135deg,#07331A,#0B4622_55%,#15733A)] text-white py-16 px-5">
+        <section className="bg-[radial-gradient(900px_320px_at_20%_-10%,rgba(251,146,60,0.24),transparent_60%),linear-gradient(135deg,#431407,#9A3412_55%,#EA580C)] text-white py-16 px-5">
           <div className="max-w-5xl mx-auto text-center flex flex-col items-center gap-5">
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-[12px] font-semibold border border-white/20">
               tlb.web.id · WakeLabs
@@ -138,7 +138,7 @@ export function PublicLanding() {
               <button
                 type="button"
                 onClick={() => openModal("auth")}
-                className="px-6 py-3 rounded-full bg-white text-[#0B4622] font-extrabold text-[14px] hover:bg-[#EAF5EE] shadow-lg transition-transform active:scale-[0.98]"
+                className="px-6 py-3 rounded-full bg-white text-[#9A3412] font-extrabold text-[14px] hover:bg-[#FFF7ED] shadow-lg transition-transform active:scale-[0.98]"
               >
                 {lang === "en" ? "Sign in / Get Started" : "Masuk / Mulai Sekarang"}
               </button>
@@ -163,9 +163,9 @@ export function PublicLanding() {
             {features.map((f) => (
               <div
                 key={f.title}
-                className="bg-white rounded-2xl border border-[#DCE5DF] p-6 shadow-sm"
+                className="bg-white rounded-2xl border border-[#E7DDD5] p-6 shadow-sm"
               >
-                <h3 className="font-extrabold text-[15.5px] text-[#0B4622] mb-2">
+                <h3 className="font-extrabold text-[15.5px] text-[#C2410C] mb-2">
                   {f.title}
                 </h3>
                 <p className="text-[13.5px] text-[#44544C] leading-relaxed">
@@ -178,16 +178,16 @@ export function PublicLanding() {
       </main>
 
       {/* Public Footer */}
-      <footer className="border-t border-[#DCE5DF] bg-white py-6 px-5">
+      <footer className="border-t border-[#E7DDD5] bg-white py-6 px-5">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-[12.5px] text-[#5C6B63]">
           <div>
             &copy; {new Date().getFullYear()} Timeline Builder Online — WakeLabs (tlb.web.id)
           </div>
           <div className="flex items-center gap-4 font-semibold">
-            <Link href="/privacy" className="hover:text-[#0B4622]">
+            <Link href="/privacy" className="hover:text-[#C2410C]">
               {lang === "en" ? "Privacy Policy" : "Kebijakan Privasi"}
             </Link>
-            <Link href="/terms" className="hover:text-[#0B4622]">
+            <Link href="/terms" className="hover:text-[#C2410C]">
               {lang === "en" ? "Terms of Service" : "Syarat & Ketentuan"}
             </Link>
           </div>

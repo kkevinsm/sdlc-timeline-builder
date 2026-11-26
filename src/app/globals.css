@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --brand: #1B7A3E;
-  --brand-600: #176B37;
-  --brand-700: #0F5A2C;
-  --brand-800: #0B4622;
-  --brand-900: #07331A;
-  --brand-50: #EEF7F1;
-  --brand-100: #D9EEDF;
-  --brand-200: #B4DCC1;
+  --brand: #EA580C;
+  --brand-600: #DC4C07;
+  --brand-700: #C2410C;
+  --brand-800: #9A3412;
+  --brand-900: #7C2D12;
+  --brand-50: #FFF7ED;
+  --brand-100: #FFEDD5;
+  --brand-200: #FED7AA;
   --accent: #FF6A13;
   --accent-600: #EA5A06;
   --accent-50: #FFF1E8;
@@ -140,7 +140,7 @@ textarea {
   z-index: 60;
   background:
     radial-gradient(900px 140px at 12% -60%, rgba(255, 255, 255, 0.16), transparent 60%),
-    linear-gradient(120deg, var(--brand-900), var(--brand-700) 55%, #15733A);
+    linear-gradient(120deg, #431407, var(--brand-800) 52%, var(--brand));
 }
 
 #appbar :focus-visible {
