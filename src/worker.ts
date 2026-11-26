@@ -134,6 +134,11 @@ function createAuth(env: Env, origin: string) {
       "https://sdlc-timeline-builder.wakelabs.workers.dev",
       "http://localhost:3000",
       "http://localhost:8787",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:8787",
+      ...(env.BETTER_AUTH_URL?.startsWith("http://localhost")
+        ? ["http://tlb.web.id"]
+        : []),
     ],
     emailAndPassword: {
       enabled: true,
