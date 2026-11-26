@@ -9,11 +9,12 @@ import { CloudProjectsModal } from "@/components/Modals/CloudProjectsModal";
 import { ExportModal } from "@/components/Modals/ExportModal";
 import { HelpModal } from "@/components/Modals/HelpModal";
 import { PlanWizardModal } from "@/components/Modals/PlanWizardModal";
+import { TeamShareModal } from "@/components/Modals/TeamShareModal";
 import { PageTabs } from "@/components/PageTabs";
 import { PresentationMode } from "@/components/PresentationMode";
 import { Sidebar } from "@/components/Sidebar/Sidebar";
 import { Stage } from "@/components/Stage";
-import { authClient } from "@/lib/authClient";
+import { acceptWorkspaceInvite, authClient } from "@/lib/authClient";
 import { TimelineProvider, useTimeline } from "@/store/useTimelineStore";
 
 function WorkspaceShell() {
@@ -29,7 +30,42 @@ function WorkspaceShell() {
     toggleSidebar,
     undo,
     redo,
+    showNotice,
   } = useTimeline();
+
+  useEffect(() => {
+    if (!session?.user || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const inviteToken = params.get("invite");
+    if (!inviteToken) return;
+
+    const cleanUrl = () => {
+      const next = new URL(window.location.href);
+      next.searchParams.delete("invite");
+      window.history.replaceState({}, "", next.pathname + next.search + next.hash);
+    };
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await acceptWorkspaceInvite(inviteToken);
+          cleanUrl();
+          showNotice(
+            lang === "en"
+              ? `Joined "${res.workspaceName}" as ${res.role}!`
+              : `Bergabung ke "${res.workspaceName}" sebagai ${res.role}!`
+          );
+          openModal("team");
+        } catch (err) {
+          cleanUrl();
+          const msg = err instanceof Error ? err.message : "Invalid invite";
+          showNotice(msg);
+        }
+      })();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [session?.user, lang, openModal, showNotice]);
 
   useEffect(() => {
     if (!session?.user) return;
@@ -121,6 +157,7 @@ function WorkspaceShell() {
       <HelpModal />
       <AuthModal />
       <CloudProjectsModal />
+      <TeamShareModal />
       {notice && (
         <div
           role="status"

@@ -5,9 +5,11 @@ import { Icon } from "@/components/IconSprite";
 import {
   deleteCloudProject,
   listCloudProjects,
+  listWorkspaces,
   loadCloudProject,
   saveCloudProject,
   type CloudProjectMeta,
+  type WorkspaceSummary,
 } from "@/lib/authClient";
 import { useTimeline } from "@/store/useTimelineStore";
 
@@ -16,7 +18,13 @@ export function CloudProjectsModal() {
     project,
     cloudProjectId,
     setCloudProjectId,
+    activeWorkspaceId,
+    setActiveWorkspaceId,
+    cloudProjectRole,
+    setCloudProjectRole,
+    setCloudProjectVersion,
     activeModal,
+    openModal,
     closeModal,
     loadProject,
     lang,
@@ -24,14 +32,21 @@ export function CloudProjectsModal() {
   } = useTimeline();
 
   const [items, setItems] = useState<CloudProjectMeta[]>([]);
+  const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const [filterWs, setFilterWs] = useState<string>("all");
+  const [targetWsId, setTargetWsId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await listCloudProjects();
+      const [list, wsList] = await Promise.all([
+        listCloudProjects(),
+        listWorkspaces().catch(() => [] as WorkspaceSummary[]),
+      ]);
       setItems(list);
+      setWorkspaces(wsList);
     } catch {
       showNotice(
         lang === "en"
@@ -54,33 +69,54 @@ export function CloudProjectsModal() {
   if (activeModal !== "cloud") return null;
 
   const handleSaveCurrentToCloud = async () => {
+    if (cloudProjectId && cloudProjectRole === "viewer") {
+      showNotice(
+        lang === "en"
+          ? "Viewers cannot save changes to this project."
+          : "Role viewer tidak dapat menyimpan perubahan ke proyek ini."
+      );
+      return;
+    }
     setBusyId("save-new");
     try {
-      const saved = await saveCloudProject(cloudProjectId, project);
+      const wsId = cloudProjectId ? activeWorkspaceId : targetWsId || null;
+      const saved = await saveCloudProject(cloudProjectId, project, {
+        workspaceId: wsId,
+      });
       setCloudProjectId(saved.id);
+      setActiveWorkspaceId(saved.workspaceId ?? null);
+      setCloudProjectVersion(saved.version);
+      if (!cloudProjectId) {
+        setCloudProjectRole("owner");
+      }
       showNotice(
         lang === "en"
           ? "Saved to cloud!"
           : "Proyek berhasil disimpan ke cloud!"
       );
       await refresh();
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : null;
       showNotice(
-        lang === "en"
-          ? "Failed to save project."
-          : "Gagal menyimpan proyek ke cloud."
+        msg ||
+          (lang === "en"
+            ? "Failed to save project."
+            : "Gagal menyimpan proyek ke cloud.")
       );
     } finally {
       setBusyId(null);
     }
   };
 
-  const handleOpen = async (id: string) => {
-    setBusyId(id);
+  const handleOpen = async (item: CloudProjectMeta) => {
+    setBusyId(item.id);
     try {
-      const res = await loadCloudProject(id);
+      const res = await loadCloudProject(item.id);
       loadProject(res.data);
       setCloudProjectId(res.id);
+      setActiveWorkspaceId(res.workspaceId ?? null);
+      setCloudProjectRole(item.role ?? "owner");
+      setCloudProjectVersion(res.version ?? null);
       showNotice(
         lang === "en"
           ? `Loaded "${res.name}"`
@@ -100,7 +136,12 @@ export function CloudProjectsModal() {
     setBusyId(id);
     try {
       await deleteCloudProject(id);
-      if (cloudProjectId === id) setCloudProjectId(null);
+      if (cloudProjectId === id) {
+        setCloudProjectId(null);
+        setActiveWorkspaceId(null);
+        setCloudProjectRole("owner");
+        setCloudProjectVersion(null);
+      }
       setItems((prev) => prev.filter((x) => x.id !== id));
       showNotice(lang === "en" ? "Project deleted." : "Proyek dihapus.");
     } catch {
@@ -111,6 +152,13 @@ export function CloudProjectsModal() {
       setBusyId(null);
     }
   };
+
+  const writableWorkspaces = workspaces.filter((w) => w.role !== "viewer");
+  const filteredItems = items.filter((item) => {
+    if (filterWs === "all") return true;
+    if (filterWs === "personal") return !item.workspaceId;
+    return item.workspaceId === filterWs;
+  });
 
   return (
     <div
@@ -151,29 +199,111 @@ export function CloudProjectsModal() {
         </div>
 
         <div className="p-5 flex flex-col gap-3 overflow-y-auto">
-          <button
-            type="button"
-            disabled={busyId === "save-new"}
-            onClick={handleSaveCurrentToCloud}
-            className="btn primary w-full"
-          >
-            <Icon name="save" />
-            <span>
-              {cloudProjectId
-                ? lang === "en"
-                  ? "Sync Current Project to Cloud"
-                  : "Sinkronkan Proyek Aktif ke Cloud"
-                : lang === "en"
-                  ? "Save Current Draft to Cloud"
-                  : "Simpan Draft Saat Ini ke Cloud"}
-            </span>
-          </button>
+          {!cloudProjectId && writableWorkspaces.length > 0 && (
+            <div className="flex items-center gap-2 text-[12px]">
+              <label
+                htmlFor="cloud-save-ws"
+                className="font-semibold text-[var(--muted)] shrink-0"
+              >
+                {lang === "en" ? "Save to:" : "Simpan ke:"}
+              </label>
+              <select
+                id="cloud-save-ws"
+                value={targetWsId}
+                onChange={(e) => setTargetWsId(e.target.value)}
+                className="flex-1 px-2.5 py-1.5 rounded-lg border border-[var(--line)] bg-white text-[12.5px] font-medium"
+              >
+                <option value="">
+                  {lang === "en" ? "Personal (Only me)" : "Personal (Hanya saya)"}
+                </option>
+                {writableWorkspaces.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({w.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={busyId === "save-new" || (!!cloudProjectId && cloudProjectRole === "viewer")}
+              onClick={handleSaveCurrentToCloud}
+              className="btn primary flex-1"
+            >
+              <Icon name="save" />
+              <span>
+                {cloudProjectId
+                  ? cloudProjectRole === "viewer"
+                    ? lang === "en"
+                      ? "Read-only (Viewer)"
+                      : "Hanya Baca (Viewer)"
+                    : lang === "en"
+                      ? "Sync Current Project to Cloud"
+                      : "Sinkronkan Proyek Aktif ke Cloud"
+                  : lang === "en"
+                    ? "Save Current Draft to Cloud"
+                    : "Simpan Draft Saat Ini ke Cloud"}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => openModal("team")}
+              className="btn soft shrink-0"
+              title={lang === "en" ? "Manage Team Workspaces" : "Kelola Team Workspace"}
+            >
+              <Icon name="user" size="sm" />
+              <span>Team</span>
+            </button>
+          </div>
+
+          {workspaces.length > 0 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              <button
+                type="button"
+                onClick={() => setFilterWs("all")}
+                className={`px-2.5 py-1 rounded-full text-[11.5px] font-semibold shrink-0 border ${
+                  filterWs === "all"
+                    ? "bg-[var(--brand)] text-white border-[var(--brand)]"
+                    : "bg-white text-[var(--muted)] border-[var(--line)] hover:border-[var(--brand)]"
+                }`}
+              >
+                {lang === "en" ? "All" : "Semua"} ({items.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterWs("personal")}
+                className={`px-2.5 py-1 rounded-full text-[11.5px] font-semibold shrink-0 border ${
+                  filterWs === "personal"
+                    ? "bg-[var(--brand)] text-white border-[var(--brand)]"
+                    : "bg-white text-[var(--muted)] border-[var(--line)] hover:border-[var(--brand)]"
+                }`}
+              >
+                Personal
+              </button>
+              {workspaces.map((w) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => setFilterWs(w.id)}
+                  className={`px-2.5 py-1 rounded-full text-[11.5px] font-semibold shrink-0 border ${
+                    filterWs === w.id
+                      ? "bg-[var(--brand)] text-white border-[var(--brand)]"
+                      : "bg-white text-[var(--muted)] border-[var(--line)] hover:border-[var(--brand)]"
+                  }`}
+                >
+                  {w.name}
+                </button>
+              ))}
+            </div>
+          )}
 
           {loading ? (
             <div className="py-8 text-center text-[12.5px] text-[var(--muted)]">
               {lang === "en" ? "Loading projects..." : "Memuat daftar proyek..."}
             </div>
-          ) : items.length === 0 ? (
+          ) : filteredItems.length === 0 ? (
             <div className="py-8 text-center text-[12.5px] text-[var(--muted)] border border-dashed border-[var(--line)] rounded-xl">
               {lang === "en"
                 ? "No cloud projects yet. Click the button above to save your current timeline."
@@ -181,8 +311,9 @@ export function CloudProjectsModal() {
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {items.map((item) => {
+              {filteredItems.map((item) => {
                 const isCurrent = cloudProjectId === item.id;
+                const role = item.role ?? "owner";
                 return (
                   <div
                     key={item.id}
@@ -193,11 +324,20 @@ export function CloudProjectsModal() {
                     }`}
                   >
                     <div className="min-w-0">
-                      <div className="font-bold text-[13px] text-[var(--ink)] truncate flex items-center gap-1.5">
+                      <div className="font-bold text-[13px] text-[var(--ink)] truncate flex items-center gap-1.5 flex-wrap">
                         <span className="truncate">{item.name}</span>
                         {isCurrent && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--brand)] text-white">
                             {lang === "en" ? "Active" : "Aktif"}
+                          </span>
+                        )}
+                        {item.workspaceName ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#EEF4FF] text-[#1D4ED8] font-semibold">
+                            {item.workspaceName} · {role}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#F3F4F6] text-[#4B5563] font-semibold">
+                            Personal
                           </span>
                         )}
                       </div>
@@ -205,6 +345,7 @@ export function CloudProjectsModal() {
                         {new Date(item.updatedAt).toLocaleString(
                           lang === "en" ? "en-US" : "id-ID"
                         )}
+                        {item.lastEditedBy ? ` · ${item.lastEditedBy}` : ""}
                       </div>
                     </div>
 
@@ -213,19 +354,21 @@ export function CloudProjectsModal() {
                         type="button"
                         disabled={busyId === item.id}
                         className="btn sm soft"
-                        onClick={() => handleOpen(item.id)}
+                        onClick={() => handleOpen(item)}
                       >
                         {lang === "en" ? "Open" : "Buka"}
                       </button>
-                      <button
-                        type="button"
-                        disabled={busyId === item.id}
-                        className="ibtn danger"
-                        aria-label="Delete project"
-                        onClick={() => handleDelete(item.id)}
-                      >
-                        <Icon name="trash" size="sm" />
-                      </button>
+                      {role === "owner" && (
+                        <button
+                          type="button"
+                          disabled={busyId === item.id}
+                          className="ibtn danger"
+                          aria-label="Delete project"
+                          onClick={() => handleDelete(item.id)}
+                        >
+                          <Icon name="trash" size="sm" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

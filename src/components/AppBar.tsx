@@ -290,7 +290,17 @@ export function AppBar() {
       </div>
 
       {session?.user ? (
-        <div className="relative ml-1">
+        <div className="flex items-center gap-1.5 ml-1">
+          <button
+            type="button"
+            className="abtn light"
+            title={lang === "en" ? "Team Workspace & Invites" : "Team Workspace & Undangan"}
+            onClick={() => openModal("team")}
+          >
+            <Icon name="user" size="sm" />
+            <span className="lb">Team</span>
+          </button>
+          <div className="relative">
           <button
             type="button"
             className="w-[34px] h-[34px] rounded-full bg-white text-[var(--brand-700)] font-extrabold text-[13px] grid place-items-center shadow ring-2 ring-white/30 hover:ring-white/60"
@@ -323,6 +333,17 @@ export function AppBar() {
               </button>
               <button
                 type="button"
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[13px] font-semibold hover:bg-[var(--brand-50)] hover:text-[var(--brand-700)]"
+                onClick={() => {
+                  setMenuOpen(false);
+                  openModal("team");
+                }}
+              >
+                <Icon name="user" size="sm" />
+                <span>{lang === "en" ? "Team Workspace" : "Team Workspace"}</span>
+              </button>
+              <button
+                type="button"
                 className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[13px] font-semibold text-[#C62828] hover:bg-[#FDECEC]"
                 onClick={async () => {
                   setMenuOpen(false);
@@ -336,6 +357,7 @@ export function AppBar() {
               </button>
             </div>
           )}
+          </div>
         </div>
       ) : (
         <button

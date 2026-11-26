@@ -24,6 +24,7 @@ import {
   listCloudProjects,
   loadCloudProject,
   saveCloudProject,
+  type MemberRole,
 } from "@/lib/authClient";
 import type {
   DepType,
@@ -37,13 +38,19 @@ import type {
 
 const MAX_HISTORY = 60;
 
-export type ModalKind = "paste" | "plan" | "export" | "present" | "help" | "auth" | "cloud" | null;
+export type ModalKind = "paste" | "plan" | "export" | "present" | "help" | "auth" | "cloud" | "team" | null;
 
 interface TimelineContextValue {
   project: ProjectData;
   activePage: PageData;
   cloudProjectId: string | null;
   setCloudProjectId: (id: string | null) => void;
+  activeWorkspaceId: string | null;
+  setActiveWorkspaceId: (id: string | null) => void;
+  cloudProjectRole: MemberRole;
+  setCloudProjectRole: (role: MemberRole) => void;
+  cloudProjectVersion: number | null;
+  setCloudProjectVersion: (version: number | null) => void;
   lang: LangCode;
   sidebarTab: SidebarTab;
   sidebarCollapsed: boolean;
@@ -111,6 +118,9 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<ModalKind>(null);
   const [cloudProjectId, setCloudProjectId] = useState<string | null>(null);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
+  const [cloudProjectRole, setCloudProjectRole] = useState<MemberRole>("owner");
+  const [cloudProjectVersion, setCloudProjectVersion] = useState<number | null>(null);
   const [hydratedForUser, setHydratedForUser] = useState<string | null>(null);
 
   const openModal = useCallback((m: Exclude<ModalKind, null>) => setActiveModal(m), []);
@@ -168,6 +178,9 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       if (!userId) {
         setProject(createDefaultProject(lang));
         setCloudProjectId(null);
+        setActiveWorkspaceId(null);
+        setCloudProjectRole("owner");
+        setCloudProjectVersion(null);
         setHydratedForUser(null);
         return;
       }
@@ -194,6 +207,9 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
           if (!cancelled && latest?.data?.pages?.length > 0) {
             setProject(syncPagesWithUTC7(latest.data));
             setCloudProjectId(latest.id);
+            setActiveWorkspaceId(latest.workspaceId ?? null);
+            setCloudProjectRole(cloudList[0].role ?? "owner");
+            setCloudProjectVersion(latest.version ?? null);
             setHydratedForUser(userId);
             return;
           }
@@ -234,9 +250,12 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // Ignore quota errors
       }
-      if (cloudProjectId) {
+      if (cloudProjectId && cloudProjectRole !== "viewer") {
         try {
-          await saveCloudProject(cloudProjectId, project);
+          const res = await saveCloudProject(cloudProjectId, project, {
+            workspaceId: activeWorkspaceId,
+          });
+          setCloudProjectVersion(res.version);
         } catch {
           // Keep local draft safe if offline/expired
         }
@@ -244,7 +263,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       setSaveState("saved");
     }, 350);
     return () => clearTimeout(timer);
-  }, [project, userId, hydratedForUser, cloudProjectId]);
+  }, [project, userId, hydratedForUser, cloudProjectId, activeWorkspaceId, cloudProjectRole]);
 
   const setLang = useCallback((next: LangCode) => {
     setLangState(next);
@@ -709,6 +728,12 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       activePage,
       cloudProjectId,
       setCloudProjectId,
+      activeWorkspaceId,
+      setActiveWorkspaceId,
+      cloudProjectRole,
+      setCloudProjectRole,
+      cloudProjectVersion,
+      setCloudProjectVersion,
       lang,
       sidebarTab,
       sidebarCollapsed,
@@ -756,6 +781,12 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       activePage,
       cloudProjectId,
       setCloudProjectId,
+      activeWorkspaceId,
+      setActiveWorkspaceId,
+      cloudProjectRole,
+      setCloudProjectRole,
+      cloudProjectVersion,
+      setCloudProjectVersion,
       lang,
       sidebarTab,
       sidebarCollapsed,

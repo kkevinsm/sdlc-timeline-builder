@@ -33,9 +33,15 @@ export interface Env {
   GOOGLE_CLIENT_SECRET?: string;
 }
 
+type MemberRole = "owner" | "editor" | "viewer";
+
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
 };
+
+function jsonRes(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+}
 
 function toHex(buf: ArrayBuffer | Uint8Array): string {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
@@ -52,9 +58,6 @@ function fromHex(hex: string): Uint8Array {
   return bytes;
 }
 
-/**
- * Hardware-accelerated Web Crypto PBKDF2-SHA256 password hashing (<1ms CPU on Workers).
- */
 async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey(
@@ -153,21 +156,237 @@ function createAuth(env: Env, origin: string) {
   });
 }
 
+async function getWorkspaceRole(
+  db: D1DatabaseLike,
+  workspaceId: string,
+  userId: string
+): Promise<MemberRole | null> {
+  const row = await db
+    .prepare(
+      "SELECT role FROM workspace_members WHERE workspaceId = ? AND userId = ?"
+    )
+    .bind(workspaceId, userId)
+    .first<{ role: MemberRole }>();
+  return row?.role ?? null;
+}
+
+async function getProjectRowAndRole(
+  db: D1DatabaseLike,
+  projectId: string,
+  userId: string
+): Promise<{
+  row: {
+    id: string;
+    userId: string;
+    workspaceId: string | null;
+    name: string;
+    data: string;
+    version: number;
+    lastEditedBy: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+  role: MemberRole;
+} | null> {
+  const row = await db
+    .prepare(
+      "SELECT id, userId, workspaceId, name, data, version, lastEditedBy, createdAt, updatedAt FROM projects WHERE id = ?"
+    )
+    .bind(projectId)
+    .first<{
+      id: string;
+      userId: string;
+      workspaceId: string | null;
+      name: string;
+      data: string;
+      version: number;
+      lastEditedBy: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>();
+
+  if (!row) return null;
+  if (!row.workspaceId) {
+    return row.userId === userId ? { row, role: "owner" } : null;
+  }
+  const role = await getWorkspaceRole(db, row.workspaceId, userId);
+  if (!role) return null;
+  return { row, role };
+}
+
+async function handleWorkspaceRoutes(
+  request: Request,
+  url: URL,
+  env: Env,
+  userId: string
+): Promise<Response> {
+  const now = new Date().toISOString();
+
+  // List workspaces for current user
+  if (url.pathname === "/api/workspaces" && request.method === "GET") {
+    const res = await env.DB.prepare(
+      `SELECT w.id, w.name, w.ownerId, w.createdAt, w.updatedAt, wm.role,
+              (SELECT COUNT(*) FROM workspace_members m WHERE m.workspaceId = w.id) AS memberCount
+       FROM workspaces w
+       JOIN workspace_members wm ON wm.workspaceId = w.id
+       WHERE wm.userId = ?
+       ORDER BY w.updatedAt DESC`
+    )
+      .bind(userId)
+      .all();
+    return jsonRes({ workspaces: res.results || [] });
+  }
+
+  // Create workspace
+  if (url.pathname === "/api/workspaces" && request.method === "POST") {
+    const body = (await request.json().catch(() => null)) as { name?: string } | null;
+    const name = String(body?.name || "").trim().slice(0, 80);
+    if (!name) return jsonRes({ error: "Workspace name is required" }, 400);
+
+    const id = `ws-${crypto.randomUUID().slice(0, 12)}`;
+    await env.DB.prepare(
+      "INSERT INTO workspaces (id, name, ownerId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)"
+    )
+      .bind(id, name, userId, now, now)
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO workspace_members (workspaceId, userId, role, joinedAt) VALUES (?, ?, 'owner', ?)"
+    )
+      .bind(id, userId, now)
+      .run();
+
+    return jsonRes({ ok: true, workspace: { id, name, ownerId: userId, role: "owner", memberCount: 1 } }, 201);
+  }
+
+  const subPath = url.pathname.replace("/api/workspaces/", "");
+  const parts = subPath.split("/").filter(Boolean);
+  const wsId = parts[0];
+  if (!wsId) return jsonRes({ error: "Missing workspace id" }, 400);
+
+  const myRole = await getWorkspaceRole(env.DB, wsId, userId);
+  if (!myRole) return jsonRes({ error: "Workspace not found" }, 404);
+
+  // GET /api/workspaces/:wsId -> details + members + invites
+  if (parts.length === 1 && request.method === "GET") {
+    const ws = await env.DB.prepare(
+      "SELECT id, name, ownerId, createdAt, updatedAt FROM workspaces WHERE id = ?"
+    )
+      .bind(wsId)
+      .first();
+    const members = await env.DB.prepare(
+      `SELECT wm.userId, wm.role, wm.joinedAt, u.name, u.email
+       FROM workspace_members wm
+       JOIN user u ON u.id = wm.userId
+       WHERE wm.workspaceId = ?
+       ORDER BY wm.joinedAt ASC`
+    )
+      .bind(wsId)
+      .all();
+
+    let invites: Record<string, unknown>[] = [];
+    if (myRole === "owner") {
+      const inv = await env.DB.prepare(
+        "SELECT id, email, role, token, expiresAt, createdAt FROM workspace_invites WHERE workspaceId = ? ORDER BY createdAt DESC"
+      )
+        .bind(wsId)
+        .all();
+      invites = inv.results || [];
+    }
+
+    return jsonRes({
+      workspace: ws,
+      myRole,
+      members: members.results || [],
+      invites,
+    });
+  }
+
+  // DELETE /api/workspaces/:wsId -> delete workspace (owner only)
+  if (parts.length === 1 && request.method === "DELETE") {
+    if (myRole !== "owner") return jsonRes({ error: "Forbidden" }, 403);
+    await env.DB.prepare("DELETE FROM workspaces WHERE id = ?").bind(wsId).run();
+    return jsonRes({ ok: true });
+  }
+
+  // POST /api/workspaces/:wsId/invites -> create invite (owner only)
+  if (parts.length === 2 && parts[1] === "invites" && request.method === "POST") {
+    if (myRole !== "owner") return jsonRes({ error: "Only owners can invite" }, 403);
+    const body = (await request.json().catch(() => null)) as {
+      email?: string;
+      role?: string;
+    } | null;
+    const role: "editor" | "viewer" = body?.role === "viewer" ? "viewer" : "editor";
+    const email = body?.email ? String(body.email).trim().toLowerCase() : null;
+    const id = `inv-${crypto.randomUUID().slice(0, 12)}`;
+    const token = crypto.randomUUID().replace(/-/g, "");
+    const expiresAt = new Date(Date.now() + 7 * 86400_000).toISOString();
+
+    await env.DB.prepare(
+      "INSERT INTO workspace_invites (id, workspaceId, email, role, token, invitedBy, expiresAt, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+      .bind(id, wsId, email, role, token, userId, expiresAt, now)
+      .run();
+
+    return jsonRes({ ok: true, invite: { id, workspaceId: wsId, email, role, token, expiresAt } }, 201);
+  }
+
+  // DELETE /api/workspaces/:wsId/invites/:inviteId -> revoke invite (owner only)
+  if (parts.length === 3 && parts[1] === "invites" && request.method === "DELETE") {
+    if (myRole !== "owner") return jsonRes({ error: "Forbidden" }, 403);
+    await env.DB.prepare(
+      "DELETE FROM workspace_invites WHERE id = ? AND workspaceId = ?"
+    )
+      .bind(parts[2], wsId)
+      .run();
+    return jsonRes({ ok: true });
+  }
+
+  // PATCH/DELETE /api/workspaces/:wsId/members/:memberId
+  if (parts.length === 3 && parts[1] === "members") {
+    const memberId = parts[2];
+    if (request.method === "PATCH") {
+      if (myRole !== "owner") return jsonRes({ error: "Forbidden" }, 403);
+      if (memberId === userId) {
+        return jsonRes({ error: "Cannot change own owner role" }, 400);
+      }
+      const body = (await request.json().catch(() => null)) as { role?: string } | null;
+      const newRole = body?.role === "viewer" ? "viewer" : "editor";
+      await env.DB.prepare(
+        "UPDATE workspace_members SET role = ? WHERE workspaceId = ? AND userId = ?"
+      )
+        .bind(newRole, wsId, memberId)
+        .run();
+      return jsonRes({ ok: true, role: newRole });
+    }
+    if (request.method === "DELETE") {
+      const canRemove = myRole === "owner" ? memberId !== userId : memberId === userId;
+      if (!canRemove) return jsonRes({ error: "Forbidden" }, 403);
+      await env.DB.prepare(
+        "DELETE FROM workspace_members WHERE workspaceId = ? AND userId = ?"
+      )
+        .bind(wsId, memberId)
+        .run();
+      return jsonRes({ ok: true });
+    }
+  }
+
+  return jsonRes({ error: "Not found" }, 404);
+}
+
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/health") {
-      return new Response(
-        JSON.stringify({
-          ok: true,
-          worker: "sdlc-timeline-builder",
-          storage: "sdlc-timeline-db",
-          auth: "better-auth",
-          googleEnabled: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
-        }),
-        { headers: JSON_HEADERS }
-      );
+      return jsonRes({
+        ok: true,
+        worker: "sdlc-timeline-builder",
+        storage: "sdlc-timeline-db",
+        auth: "better-auth",
+        googleEnabled: Boolean(
+          env.GOOGLE_CLIENT_ID?.trim() && env.GOOGLE_CLIENT_SECRET?.trim()
+        ),
+      });
     }
 
     if (url.pathname.startsWith("/api/auth")) {
@@ -175,36 +394,136 @@ const worker = {
       return auth.handler(request);
     }
 
-    if (url.pathname.startsWith("/api/projects")) {
+    // Public invite preview (metadata only, no sensitive project data)
+    if (url.pathname.startsWith("/api/invites/") && request.method === "GET") {
+      const token = url.pathname.replace("/api/invites/", "").replace(/[^a-zA-Z0-9_-]/g, "");
+      const inv = await env.DB.prepare(
+        `SELECT i.id, i.workspaceId, i.role, i.email, i.expiresAt, w.name AS workspaceName
+         FROM workspace_invites i
+         JOIN workspaces w ON w.id = i.workspaceId
+         WHERE i.token = ?`
+      )
+        .bind(token)
+        .first<{
+          id: string;
+          workspaceId: string;
+          role: string;
+          email: string | null;
+          expiresAt: string;
+          workspaceName: string;
+        }>();
+      if (!inv) return jsonRes({ error: "Invite not found" }, 404);
+      const expired = new Date(inv.expiresAt).getTime() < Date.now();
+      return jsonRes({
+        workspaceId: inv.workspaceId,
+        workspaceName: inv.workspaceName,
+        role: inv.role,
+        restrictedEmail: Boolean(inv.email),
+        expired,
+      });
+    }
+
+    // All routes below require authenticated session
+    if (
+      url.pathname.startsWith("/api/workspaces") ||
+      url.pathname.startsWith("/api/invites/") ||
+      url.pathname.startsWith("/api/projects")
+    ) {
       const auth = createAuth(env, url.origin);
       const session = await auth.api.getSession({ headers: request.headers });
       if (!session?.user?.id) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-          headers: JSON_HEADERS,
-        });
+        return jsonRes({ error: "Unauthorized" }, 401);
       }
       const userId = session.user.id;
+      const userLabel = session.user.name || session.user.email || userId;
 
-      // List user's projects
-      if (url.pathname === "/api/projects" && request.method === "GET") {
-        const res = await env.DB.prepare(
-          "SELECT id, name, createdAt, updatedAt FROM projects WHERE userId = ? ORDER BY updatedAt DESC"
+      // Accept workspace invite
+      if (url.pathname.startsWith("/api/invites/") && url.pathname.endsWith("/accept") && request.method === "POST") {
+        const token = url.pathname
+          .replace("/api/invites/", "")
+          .replace("/accept", "")
+          .replace(/[^a-zA-Z0-9_-]/g, "");
+        const inv = await env.DB.prepare(
+          `SELECT i.id, i.workspaceId, i.email, i.role, i.expiresAt, w.name AS workspaceName
+           FROM workspace_invites i
+           JOIN workspaces w ON w.id = i.workspaceId
+           WHERE i.token = ?`
         )
-          .bind(userId)
-          .all<{ id: string; name: string; createdAt: string; updatedAt: string }>();
+          .bind(token)
+          .first<{
+            id: string;
+            workspaceId: string;
+            email: string | null;
+            role: "editor" | "viewer";
+            expiresAt: string;
+            workspaceName: string;
+          }>();
 
-        return new Response(JSON.stringify({ projects: res.results || [] }), {
-          headers: JSON_HEADERS,
+        if (!inv) return jsonRes({ error: "Invite not found" }, 404);
+        if (new Date(inv.expiresAt).getTime() < Date.now()) {
+          return jsonRes({ error: "Invite expired" }, 410);
+        }
+        if (
+          inv.email &&
+          session.user.email?.toLowerCase() !== inv.email.toLowerCase()
+        ) {
+          return jsonRes(
+            { error: "This invite is restricted to another email address" },
+            403
+          );
+        }
+
+        const existingRole = await getWorkspaceRole(env.DB, inv.workspaceId, userId);
+        if (!existingRole) {
+          await env.DB.prepare(
+            "INSERT INTO workspace_members (workspaceId, userId, role, joinedAt) VALUES (?, ?, ?, ?)"
+          )
+            .bind(inv.workspaceId, userId, inv.role, new Date().toISOString())
+            .run();
+        }
+        if (inv.email) {
+          await env.DB.prepare("DELETE FROM workspace_invites WHERE id = ?")
+            .bind(inv.id)
+            .run();
+        }
+        return jsonRes({
+          ok: true,
+          workspaceId: inv.workspaceId,
+          workspaceName: inv.workspaceName,
+          role: existingRole || inv.role,
         });
       }
 
-      // Create / Upsert user's project
+      if (url.pathname.startsWith("/api/workspaces")) {
+        return handleWorkspaceRoutes(request, url, env, userId);
+      }
+
+      // Projects API (personal + workspace-shared)
+      if (url.pathname === "/api/projects" && request.method === "GET") {
+        const res = await env.DB.prepare(
+          `SELECT p.id, p.name, p.workspaceId, p.version, p.lastEditedBy, p.createdAt, p.updatedAt,
+                  w.name AS workspaceName,
+                  COALESCE(wm.role, 'owner') AS role
+           FROM projects p
+           LEFT JOIN workspaces w ON w.id = p.workspaceId
+           LEFT JOIN workspace_members wm ON wm.workspaceId = p.workspaceId AND wm.userId = ?
+           WHERE (p.workspaceId IS NULL AND p.userId = ?)
+              OR (p.workspaceId IS NOT NULL AND wm.userId = ?)
+           ORDER BY p.updatedAt DESC`
+        )
+          .bind(userId, userId, userId)
+          .all();
+
+        return jsonRes({ projects: res.results || [] });
+      }
+
       if (url.pathname === "/api/projects" && request.method === "POST") {
         try {
           const body = (await request.json()) as {
             id?: string;
             name?: string;
+            workspaceId?: string | null;
+            expectedVersion?: number;
             data?: unknown;
           };
           const id =
@@ -214,96 +533,117 @@ const worker = {
           const now = new Date().toISOString();
           const dataJson = JSON.stringify(body.data ?? body);
 
-          const existing = await env.DB.prepare(
-            "SELECT userId FROM projects WHERE id = ?"
-          )
-            .bind(id)
-            .first<{ userId: string }>();
+          const existing = await getProjectRowAndRole(env.DB, id, userId);
+          if (existing) {
+            if (existing.role === "viewer") {
+              return jsonRes({ error: "Viewers cannot edit this project" }, 403);
+            }
+            if (
+              typeof body.expectedVersion === "number" &&
+              existing.row.version !== body.expectedVersion
+            ) {
+              return jsonRes(
+                {
+                  error: "Version conflict",
+                  currentVersion: existing.row.version,
+                  lastEditedBy: existing.row.lastEditedBy,
+                  updatedAt: existing.row.updatedAt,
+                },
+                409
+              );
+            }
+            const nextVersion = (existing.row.version || 1) + 1;
+            const nextWsId =
+              body.workspaceId !== undefined
+                ? body.workspaceId || null
+                : existing.row.workspaceId;
 
-          if (existing && existing.userId !== userId) {
-            return new Response(JSON.stringify({ error: "Forbidden" }), {
-              status: 403,
-              headers: JSON_HEADERS,
+            if (nextWsId && nextWsId !== existing.row.workspaceId) {
+              const targetRole = await getWorkspaceRole(env.DB, nextWsId, userId);
+              if (!targetRole || targetRole === "viewer") {
+                return jsonRes({ error: "Forbidden for target workspace" }, 403);
+              }
+            }
+
+            await env.DB.prepare(
+              "UPDATE projects SET name = ?, data = ?, workspaceId = ?, version = ?, lastEditedBy = ?, updatedAt = ? WHERE id = ?"
+            )
+              .bind(name, dataJson, nextWsId, nextVersion, userLabel, now, id)
+              .run();
+
+            return jsonRes({
+              ok: true,
+              id,
+              name,
+              workspaceId: nextWsId,
+              version: nextVersion,
+              lastEditedBy: userLabel,
+              updatedAt: now,
             });
           }
 
-          if (existing) {
-            await env.DB.prepare(
-              "UPDATE projects SET name = ?, data = ?, updatedAt = ? WHERE id = ? AND userId = ?"
-            )
-              .bind(name, dataJson, now, id, userId)
-              .run();
-          } else {
-            await env.DB.prepare(
-              "INSERT INTO projects (id, userId, name, data, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)"
-            )
-              .bind(id, userId, name, dataJson, now, now)
-              .run();
+          // New project creation
+          const wsId = body.workspaceId ? String(body.workspaceId) : null;
+          if (wsId) {
+            const wsRole = await getWorkspaceRole(env.DB, wsId, userId);
+            if (!wsRole || wsRole === "viewer") {
+              return jsonRes(
+                { error: "Forbidden: Editor or Owner role required" },
+                403
+              );
+            }
           }
 
-          return new Response(
-            JSON.stringify({ ok: true, id, name, updatedAt: now }),
-            { status: 200, headers: JSON_HEADERS }
-          );
+          await env.DB.prepare(
+            "INSERT INTO projects (id, userId, workspaceId, name, data, version, lastEditedBy, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)"
+          )
+            .bind(id, userId, wsId, name, dataJson, userLabel, now, now)
+            .run();
+
+          return jsonRes({
+            ok: true,
+            id,
+            name,
+            workspaceId: wsId,
+            version: 1,
+            lastEditedBy: userLabel,
+            updatedAt: now,
+          });
         } catch {
-          return new Response(
-            JSON.stringify({ error: "Invalid project payload" }),
-            { status: 400, headers: JSON_HEADERS }
-          );
+          return jsonRes({ error: "Invalid project payload" }, 400);
         }
       }
 
-      // Single project GET / DELETE
       const id = url.pathname
         .replace("/api/projects/", "")
         .replace(/[^a-zA-Z0-9_-]/g, "");
-      if (!id) {
-        return new Response(JSON.stringify({ error: "Missing id" }), {
-          status: 400,
-          headers: JSON_HEADERS,
-        });
-      }
+      if (!id) return jsonRes({ error: "Missing id" }, 400);
+
+      const access = await getProjectRowAndRole(env.DB, id, userId);
+      if (!access) return jsonRes({ error: "Not found" }, 404);
 
       if (request.method === "GET") {
-        const row = await env.DB.prepare(
-          "SELECT id, name, data, createdAt, updatedAt FROM projects WHERE id = ? AND userId = ?"
-        )
-          .bind(id, userId)
-          .first<{
-            id: string;
-            name: string;
-            data: string;
-            createdAt: string;
-            updatedAt: string;
-          }>();
-
-        if (!row) {
-          return new Response(JSON.stringify({ error: "Not found" }), {
-            status: 404,
-            headers: JSON_HEADERS,
-          });
-        }
-        return new Response(
-          JSON.stringify({
-            id: row.id,
-            name: row.name,
-            createdAt: row.createdAt,
-            updatedAt: row.updatedAt,
-            data: JSON.parse(row.data),
-          }),
-          { headers: JSON_HEADERS }
-        );
+        return jsonRes({
+          id: access.row.id,
+          name: access.row.name,
+          workspaceId: access.row.workspaceId,
+          role: access.role,
+          version: access.row.version,
+          lastEditedBy: access.row.lastEditedBy,
+          createdAt: access.row.createdAt,
+          updatedAt: access.row.updatedAt,
+          data: JSON.parse(access.row.data),
+        });
       }
 
       if (request.method === "DELETE") {
-        await env.DB.prepare(
-          "DELETE FROM projects WHERE id = ? AND userId = ?"
-        )
-          .bind(id, userId)
+        if (access.role !== "owner") {
+          return jsonRes({ error: "Only owners can delete this project" }, 403);
+        }
+        await env.DB.prepare("DELETE FROM projects WHERE id = ?")
+          .bind(id)
           .run();
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: JSON_HEADERS,
-        });
+        return jsonRes({ ok: true });
       }
     }
 
