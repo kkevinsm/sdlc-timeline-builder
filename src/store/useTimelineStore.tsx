@@ -153,6 +153,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
   const lastSyncedProjectRef = useRef<ProjectData | null>(null);
   const prevBroadcastProjectRef = useRef<ProjectData | null>(null);
   const cloudVersionRef = useRef<number | null>(null);
+  const creatingCloudRef = useRef<boolean>(false);
 
   useEffect(() => {
     cloudVersionRef.current = cloudProjectVersion;
@@ -311,7 +312,33 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // Ignore quota errors
       }
-      if (cloudProjectId && cloudProjectRole !== "viewer") {
+      if (!cloudProjectId && cloudProjectRole !== "viewer") {
+        if (!creatingCloudRef.current) {
+          creatingCloudRef.current = true;
+          try {
+            const serialized = JSON.stringify(project);
+            const res = await saveCloudProject(null, project, {
+              workspaceId: activeWorkspaceId,
+            });
+            lastSyncedJsonRef.current = serialized;
+            lastSyncedProjectRef.current = project;
+            prevBroadcastProjectRef.current = project;
+            cloudVersionRef.current = res.version;
+            setCloudProjectId(res.id);
+            setCloudProjectVersion(res.version);
+            setCloudProjectRole("owner");
+            try {
+              localStorage.setItem(userCloudIdKey(userId), res.id);
+            } catch {
+              // Ignore
+            }
+          } catch {
+            // Keep local draft safe if offline/expired
+          } finally {
+            creatingCloudRef.current = false;
+          }
+        }
+      } else if (cloudProjectId && cloudProjectRole !== "viewer") {
         const serialized = JSON.stringify(project);
         if (serialized === lastSyncedJsonRef.current) {
           setSaveState("saved");

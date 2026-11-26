@@ -9,6 +9,7 @@ import {
   listWorkspaces,
   removeWorkspaceMember,
   revokeWorkspaceInvite,
+  saveCloudProject,
   updateMemberRole,
   type WorkspaceDetail,
   type WorkspaceSummary,
@@ -16,8 +17,18 @@ import {
 import { useTimeline } from "@/store/useTimelineStore";
 
 export function TeamShareModal() {
-  const { activeModal, closeModal, lang, showNotice, cloudProjectId, activeWorkspaceId } =
-    useTimeline();
+  const {
+    activeModal,
+    closeModal,
+    lang,
+    showNotice,
+    project,
+    cloudProjectId,
+    setCloudProjectId,
+    activeWorkspaceId,
+    setActiveWorkspaceId,
+    setCloudProjectVersion,
+  } = useTimeline();
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [selectedWsId, setSelectedWsId] = useState<string | null>(null);
   const [detail, setDetail] = useState<WorkspaceDetail | null>(null);
@@ -101,12 +112,30 @@ export function TeamShareModal() {
     if (!selectedWsId) return;
     setBusy(true);
     try {
+      let activePid = cloudProjectId;
+      // Automatically attach active personal timeline to this Team Workspace so invitees open it directly
+      if (!activePid || !activeWorkspaceId) {
+        try {
+          const saved = await saveCloudProject(activePid, project, {
+            workspaceId: selectedWsId,
+          });
+          activePid = saved.id;
+          setCloudProjectId(saved.id);
+          setActiveWorkspaceId(saved.workspaceId ?? selectedWsId);
+          setCloudProjectVersion(saved.version);
+        } catch {
+          // Non-fatal: still proceed with workspace invite
+        }
+      }
+
       const inv = await createWorkspaceInvite(
         selectedWsId,
         inviteRole,
         inviteEmail
       );
-      const link = buildInviteLink(inv.token);
+      const link = activePid
+        ? `${window.location.origin}/?invite=${inv.token}&project=${encodeURIComponent(activePid)}`
+        : buildInviteLink(inv.token);
       try {
         await navigator.clipboard.writeText(link);
         showNotice(
