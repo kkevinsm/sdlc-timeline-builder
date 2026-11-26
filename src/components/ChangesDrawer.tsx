@@ -2,7 +2,11 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/IconSprite";
-import { getProjectChanges, type ProjectChangeItem } from "@/lib/authClient";
+import {
+  getProjectChanges,
+  restoreProjectSnapshot,
+  type ProjectChangeItem,
+} from "@/lib/authClient";
 import { useTimeline } from "@/store/useTimelineStore";
 
 function formatRelativeTime(iso: string, lang: "id" | "en"): string {
@@ -34,7 +38,11 @@ export function ChangesDrawer() {
     activeModal,
     closeModal,
     cloudProjectId,
+    activeWorkspaceId,
+    cloudProjectRole,
     cloudProjectVersion,
+    openCloudProject,
+    showNotice,
     activePage,
     lang,
   } = useTimeline();
@@ -42,6 +50,7 @@ export function ChangesDrawer() {
   const [scope, setScope] = useState<"all" | "page">("all");
   const [changes, setChanges] = useState<ProjectChangeItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!cloudProjectId) {
@@ -226,6 +235,57 @@ export function ChangesDrawer() {
                     </span>
                   </div>
                 </div>
+
+                {Boolean(ch.hasSnapshot) && cloudProjectRole !== "viewer" && (
+                  <div className="pt-1 border-t border-[var(--line-2)] flex justify-end">
+                    <button
+                      type="button"
+                      disabled={restoringId === ch.id}
+                      onClick={async () => {
+                        if (!cloudProjectId) return;
+                        setRestoringId(ch.id);
+                        try {
+                          const res = await restoreProjectSnapshot(
+                            cloudProjectId,
+                            ch.id
+                          );
+                          openCloudProject({
+                            id: res.id,
+                            workspaceId: activeWorkspaceId,
+                            role: cloudProjectRole,
+                            version: res.version,
+                            data: res.data,
+                          });
+                          showNotice(
+                            lang === "en"
+                              ? "Version restored!"
+                              : "Versi berhasil dipulihkan!"
+                          );
+                          await load();
+                        } catch (err) {
+                          const msg =
+                            err instanceof Error
+                              ? err.message
+                              : lang === "en"
+                                ? "Failed to restore version."
+                                : "Gagal memulihkan versi.";
+                          showNotice(msg);
+                        } finally {
+                          setRestoringId(null);
+                        }
+                      }}
+                      className="btn xs soft text-[11px]"
+                    >
+                      {restoringId === ch.id
+                        ? lang === "en"
+                          ? "Restoring..."
+                          : "Memulihkan..."
+                        : lang === "en"
+                          ? "Restore this version"
+                          : "Pulihkan versi ini"}
+                    </button>
+                  </div>
+                )}
               </div>
             ))
           )}

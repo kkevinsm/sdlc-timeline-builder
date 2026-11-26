@@ -846,10 +846,11 @@ const worker = {
               existing.row.data,
               body.data ?? body
             );
-            for (const ch of changeEntries) {
+            for (let ci = 0; ci < changeEntries.length; ci++) {
+              const ch = changeEntries[ci];
               await env.DB.prepare(
-                `INSERT INTO project_changes (id, projectId, userId, userName, pageId, pageName, targetLabel, fieldLabel, oldValue, newValue, createdAt)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                `INSERT INTO project_changes (id, projectId, userId, userName, pageId, pageName, targetLabel, fieldLabel, oldValue, newValue, snapshotData, createdAt)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
               )
                 .bind(
                   `chg-${crypto.randomUUID().slice(0, 12)}`,
@@ -862,6 +863,7 @@ const worker = {
                   ch.fieldLabel,
                   ch.oldValue.slice(0, 160),
                   ch.newValue.slice(0, 160),
+                  ci === 0 ? existing.row.data : null,
                   now
                 )
                 .run();
@@ -910,6 +912,70 @@ const worker = {
         }
       }
 
+      // Restore snapshot from Show Changes history
+      const restoreMatch = url.pathname.match(
+        /^\/api\/projects\/([a-zA-Z0-9_-]+)\/changes\/([a-zA-Z0-9_-]+)\/restore$/
+      );
+      if (restoreMatch && request.method === "POST") {
+        const projectId = restoreMatch[1];
+        const changeId = restoreMatch[2];
+        const access = await getProjectRowAndRole(env.DB, projectId, userId);
+        if (!access) return jsonRes({ error: "Not found" }, 404);
+        if (access.role === "viewer") {
+          return jsonRes({ error: "Viewers cannot restore versions" }, 403);
+        }
+
+        const chRow = await env.DB.prepare(
+          "SELECT id, snapshotData, createdAt FROM project_changes WHERE id = ? AND projectId = ?"
+        )
+          .bind(changeId, projectId)
+          .first<{ id: string; snapshotData: string | null; createdAt: string }>();
+
+        if (!chRow || !chRow.snapshotData) {
+          return jsonRes({ error: "Snapshot not available for this entry" }, 404);
+        }
+
+        const restored = JSON.parse(chRow.snapshotData) as { name?: string };
+        const nextName =
+          String(restored?.name || access.row.name || "Timeline Project").slice(0, 140);
+        const nextVersion = (access.row.version || 1) + 1;
+        const now = new Date().toISOString();
+
+        await env.DB.prepare(
+          "UPDATE projects SET name = ?, data = ?, version = ?, lastEditedBy = ?, updatedAt = ? WHERE id = ?"
+        )
+          .bind(nextName, chRow.snapshotData, nextVersion, userLabel, now, projectId)
+          .run();
+
+        await env.DB.prepare(
+          `INSERT INTO project_changes (id, projectId, userId, userName, pageId, pageName, targetLabel, fieldLabel, oldValue, newValue, snapshotData, createdAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+          .bind(
+            `chg-${crypto.randomUUID().slice(0, 12)}`,
+            projectId,
+            userId,
+            userLabel,
+            null,
+            null,
+            nextName,
+            "Pulihkan Versi",
+            `v${access.row.version}`,
+            `Versi sebelum ${new Date(chRow.createdAt).toLocaleString("id-ID")}`,
+            access.row.data,
+            now
+          )
+          .run();
+
+        return jsonRes({
+          ok: true,
+          id: projectId,
+          name: nextName,
+          version: nextVersion,
+          data: restored,
+        });
+      }
+
       // Per-project Show Changes history endpoint
       const changesMatch = url.pathname.match(
         /^\/api\/projects\/([a-zA-Z0-9_-]+)\/changes$/
@@ -924,14 +990,16 @@ const worker = {
         const query =
           pageIdNum !== null && !Number.isNaN(pageIdNum)
             ? env.DB.prepare(
-                `SELECT id, projectId, userId, userName, pageId, pageName, targetLabel, fieldLabel, oldValue, newValue, createdAt
+                `SELECT id, projectId, userId, userName, pageId, pageName, targetLabel, fieldLabel, oldValue, newValue,
+                        CASE WHEN snapshotData IS NOT NULL THEN 1 ELSE 0 END AS hasSnapshot, createdAt
                  FROM project_changes
                  WHERE projectId = ? AND pageId = ?
                  ORDER BY createdAt DESC
                  LIMIT 60`
               ).bind(projectId, pageIdNum)
             : env.DB.prepare(
-                `SELECT id, projectId, userId, userName, pageId, pageName, targetLabel, fieldLabel, oldValue, newValue, createdAt
+                `SELECT id, projectId, userId, userName, pageId, pageName, targetLabel, fieldLabel, oldValue, newValue,
+                        CASE WHEN snapshotData IS NOT NULL THEN 1 ELSE 0 END AS hasSnapshot, createdAt
                  FROM project_changes
                  WHERE projectId = ?
                  ORDER BY createdAt DESC
@@ -940,6 +1008,108 @@ const worker = {
 
         const res = await query.all();
         return jsonRes({ changes: res.results || [] });
+      }
+
+      // Per-row Task Comments & @mentions endpoints
+      const commentsMatch = url.pathname.match(
+        /^\/api\/projects\/([a-zA-Z0-9_-]+)\/comments(?:\/([a-zA-Z0-9_-]+))?$/
+      );
+      if (commentsMatch) {
+        const projectId = commentsMatch[1];
+        const commentId = commentsMatch[2];
+        const access = await getProjectRowAndRole(env.DB, projectId, userId);
+        if (!access) return jsonRes({ error: "Not found" }, 404);
+
+        if (!commentId && request.method === "GET") {
+          const rowIdParam = url.searchParams.get("rowId");
+          const res = rowIdParam
+            ? await env.DB.prepare(
+                `SELECT id, projectId, rowId, userId, userName, body, mentions, createdAt
+                 FROM task_comments
+                 WHERE projectId = ? AND rowId = ?
+                 ORDER BY createdAt ASC`
+              )
+                .bind(projectId, rowIdParam)
+                .all()
+            : await env.DB.prepare(
+                `SELECT id, projectId, rowId, userId, userName, body, mentions, createdAt
+                 FROM task_comments
+                 WHERE projectId = ?
+                 ORDER BY createdAt ASC`
+              )
+                .bind(projectId)
+                .all();
+          return jsonRes({ comments: res.results || [] });
+        }
+
+        if (!commentId && request.method === "POST") {
+          const payload = (await request.json().catch(() => null)) as {
+            rowId?: string;
+            body?: string;
+            mentions?: string[];
+          } | null;
+          const rowId = String(payload?.rowId || "").trim();
+          const bodyText = String(payload?.body || "").trim().slice(0, 1000);
+          if (!rowId || !bodyText) {
+            return jsonRes({ error: "rowId and body are required" }, 400);
+          }
+          const mentionsArr = Array.isArray(payload?.mentions)
+            ? payload.mentions.map((m) => String(m)).slice(0, 20)
+            : [];
+          const id = `cmt-${crypto.randomUUID().slice(0, 12)}`;
+          const now = new Date().toISOString();
+
+          await env.DB.prepare(
+            `INSERT INTO task_comments (id, projectId, rowId, userId, userName, body, mentions, createdAt)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+            .bind(
+              id,
+              projectId,
+              rowId,
+              userId,
+              userLabel,
+              bodyText,
+              JSON.stringify(mentionsArr),
+              now
+            )
+            .run();
+
+          return jsonRes(
+            {
+              ok: true,
+              comment: {
+                id,
+                projectId,
+                rowId,
+                userId,
+                userName: userLabel,
+                body: bodyText,
+                mentions: JSON.stringify(mentionsArr),
+                createdAt: now,
+              },
+            },
+            201
+          );
+        }
+
+        if (commentId && request.method === "DELETE") {
+          const existingCmt = await env.DB.prepare(
+            "SELECT id, userId FROM task_comments WHERE id = ? AND projectId = ?"
+          )
+            .bind(commentId, projectId)
+            .first<{ id: string; userId: string }>();
+          if (!existingCmt) return jsonRes({ error: "Comment not found" }, 404);
+          if (access.role !== "owner" && existingCmt.userId !== userId) {
+            return jsonRes({ error: "Forbidden" }, 403);
+          }
+          await env.DB.prepare("DELETE FROM task_comments WHERE id = ?")
+            .bind(commentId)
+            .run();
+          return jsonRes({ ok: true });
+        }
+
+        return jsonRes({ error: "Method not allowed" }, 405);
       }
 
       // Per-project Google-Sheets-style sharing routes
@@ -1353,6 +1523,19 @@ export class TimelineRoom {
           color: meta.color,
           pageId: msg.pageId ?? null,
           rowId: msg.rowId ?? null,
+        },
+        ws
+      );
+      return;
+    }
+
+    if (msg.type === "comment_added" && msg.data) {
+      this.broadcast(
+        {
+          type: "comment_added",
+          senderId: meta.userId,
+          senderName: meta.name,
+          comment: msg.data,
         },
         ws
       );

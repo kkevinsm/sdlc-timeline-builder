@@ -12,7 +12,9 @@ import {
 } from "@/constants/theme";
 import { collectDepEdges } from "@/engine/dependency";
 import { buildTimelineModel } from "@/engine/layoutModel";
+import { authClient } from "@/lib/authClient";
 import { useTimeline } from "@/store/useTimelineStore";
+import type { StatusKey } from "@/types/timeline";
 
 function EmptyArtSvg() {
   return (
@@ -111,11 +113,61 @@ export function Stage() {
   const cardRef = useRef<HTMLDivElement>(null);
   const conflictRef = useRef<HTMLDivElement>(null);
   const [conflictsOpen, setConflictsOpen] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<"all" | StatusKey>("all");
+  const [filterOwner, setFilterOwner] = useState<string>("all");
+  const { data: session } = authClient.useSession();
+  const myFirstName = (session?.user?.name || "").trim().toLowerCase().split(" ")[0];
+
+  const distinctOwners = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of activePage.rows) {
+      if (r.type === "task" && r.owner?.trim()) {
+        set.add(r.owner.trim());
+      }
+    }
+    return Array.from(set).sort();
+  }, [activePage.rows]);
 
   const model = useMemo(
     () => buildTimelineModel(activePage, project.mode, lang),
     [activePage, project.mode, lang]
   );
+
+  const filteredModel = useMemo(() => {
+    if (filterStatus === "all" && filterOwner === "all") return model;
+    const isTaskMatch = (item: (typeof model.visibleRows)[number]) => {
+      if (item.kind !== "task") return false;
+      if (filterStatus !== "all" && item.st !== filterStatus) return false;
+      if (filterOwner === "__me__") {
+        const own = (item.row.owner || "").trim().toLowerCase();
+        if (!myFirstName || !own.includes(myFirstName)) return false;
+      } else if (filterOwner !== "all") {
+        if ((item.row.owner || "").trim() !== filterOwner) return false;
+      }
+      return true;
+    };
+
+    const nextVisible: typeof model.visibleRows = [];
+    for (let i = 0; i < model.visibleRows.length; i++) {
+      const cur = model.visibleRows[i];
+      if (cur.kind === "task") {
+        if (isTaskMatch(cur)) nextVisible.push(cur);
+      } else {
+        // Keep group header only if at least one subsequent task before the next group matches
+        let hasMatch = false;
+        for (let j = i + 1; j < model.visibleRows.length; j++) {
+          const nxt = model.visibleRows[j];
+          if (nxt.kind === "group") break;
+          if (isTaskMatch(nxt)) {
+            hasMatch = true;
+            break;
+          }
+        }
+        if (hasMatch) nextVisible.push(cur);
+      }
+    }
+    return { ...model, visibleRows: nextVisible };
+  }, [filterOwner, filterStatus, model, myFirstName]);
 
   const conflictEdges = useMemo(
     () => collectDepEdges(activePage).filter((e) => e.conflict),
@@ -224,6 +276,53 @@ export function Stage() {
             <Icon name="fit" />
             <span>{t("pg.fit")}</span>
           </button>
+        </div>
+
+        <span className="tb-sep" role="separator" aria-orientation="vertical" />
+
+        <div className="flex items-center gap-1.5" role="group" aria-label="Filters">
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as "all" | StatusKey)}
+            className="h-[26px] px-2 rounded-lg border border-[var(--line)] bg-white text-[11.5px] font-semibold text-[var(--ink-2)] cursor-pointer"
+            title={lang === "en" ? "Filter by status" : "Filter status"}
+          >
+            <option value="all">{lang === "en" ? "All Status" : "Semua Status"}</option>
+            <option value="atrisk">At Risk</option>
+            <option value="inprogress">In Progress</option>
+            <option value="done">{lang === "en" ? "Done" : "Selesai"}</option>
+            <option value="notstarted">{lang === "en" ? "Not Started" : "Belum Mulai"}</option>
+          </select>
+          <select
+            value={filterOwner}
+            onChange={(e) => setFilterOwner(e.target.value)}
+            className="h-[26px] px-2 rounded-lg border border-[var(--line)] bg-white text-[11.5px] font-semibold text-[var(--ink-2)] cursor-pointer max-w-[130px]"
+            title={lang === "en" ? "Filter by assignee" : "Filter PIC / Tugas Saya"}
+          >
+            <option value="all">{lang === "en" ? "All PIC" : "Semua PIC"}</option>
+            {myFirstName && (
+              <option value="__me__">
+                {lang === "en" ? "My Tasks" : "Tugas Saya"}
+              </option>
+            )}
+            {distinctOwners.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+          {(filterStatus !== "all" || filterOwner !== "all") && (
+            <button
+              type="button"
+              onClick={() => {
+                setFilterStatus("all");
+                setFilterOwner("all");
+              }}
+              className="h-[26px] px-2 rounded-lg bg-[var(--brand-50)] text-[var(--brand-700)] text-[11px] font-bold hover:bg-[var(--brand-100)]"
+            >
+              Reset
+            </button>
+          )}
         </div>
 
         <div className="stats">
@@ -361,7 +460,7 @@ export function Stage() {
         <div id="scroll" ref={scrollRef}>
           <div id="board">
             <TimelineCard
-              model={model}
+              model={filteredModel}
               cardRef={cardRef}
               scale={project.zoom / 100}
               currentPeriodBadge={currentPeriodBadge}

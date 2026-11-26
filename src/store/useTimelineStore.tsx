@@ -24,9 +24,11 @@ import {
   listCloudProjects,
   loadCloudProject,
   saveCloudProject,
+  getProjectComments,
   type CollaboratorCursor,
   type MemberRole,
   type PresenceUser,
+  type TaskCommentItem,
 } from "@/lib/authClient";
 import {
   applyTimelineOps,
@@ -62,6 +64,11 @@ interface TimelineContextValue {
   roomConnected: boolean;
   remoteCursors: Record<string, CollaboratorCursor>;
   reportActiveRow: (rowId: string | null) => void;
+  comments: TaskCommentItem[];
+  setComments: React.Dispatch<React.SetStateAction<TaskCommentItem[]>>;
+  activeCommentRowId: string | null;
+  setActiveCommentRowId: (rowId: string | null) => void;
+  broadcastComment: (comment: TaskCommentItem) => void;
   lang: LangCode;
   sidebarTab: SidebarTab;
   sidebarCollapsed: boolean;
@@ -145,6 +152,8 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
   const [roomUsers, setRoomUsers] = useState<PresenceUser[]>([]);
   const [roomConnected, setRoomConnected] = useState(false);
   const [remoteCursors, setRemoteCursors] = useState<Record<string, CollaboratorCursor>>({});
+  const [comments, setComments] = useState<TaskCommentItem[]>([]);
+  const [activeCommentRowId, setActiveCommentRowId] = useState<string | null>(null);
   const [hydratedForUser, setHydratedForUser] = useState<string | null>(null);
 
   const openModal = useCallback((m: Exclude<ModalKind, null>) => setActiveModal(m), []);
@@ -435,6 +444,13 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
         backoffMs = 1000;
         setRoomConnected(true);
         // Catch up from D1 on connect/reconnect in case updates happened while offline
+        void getProjectComments(cloudProjectId)
+          .then((list) => {
+            if (!closed) setComments(list);
+          })
+          .catch(() => {
+            // Ignore
+          });
         void loadCloudProject(cloudProjectId)
           .then((latest) => {
             if (
@@ -477,6 +493,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
             color?: string;
             pageId?: number | null;
             rowId?: string | null;
+            comment?: TaskCommentItem;
           };
           if (msg.type === "presence") {
             const list = Array.isArray(msg.users) ? msg.users : [];
@@ -502,6 +519,30 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
                 updatedAt: Date.now(),
               },
             }));
+          } else if (msg.type === "comment_added" && msg.comment) {
+            const incoming = msg.comment;
+            setComments((prev) =>
+              prev.some((c) => c.id === incoming.id) ? prev : [...prev, incoming]
+            );
+            const mentioned = (() => {
+              try {
+                const arr = JSON.parse(incoming.mentions || "[]") as string[];
+                if (arr.includes(userId)) return true;
+              } catch {
+                // Ignore
+              }
+              const myName = (session?.user?.name || "").split(" ")[0].toLowerCase();
+              return Boolean(
+                myName && incoming.body.toLowerCase().includes(`@${myName}`)
+              );
+            })();
+            if (mentioned) {
+              showNotice(
+                lang === "en"
+                  ? `${incoming.userName} mentioned you: "${incoming.body.slice(0, 40)}"`
+                  : `${incoming.userName} menyebut Anda: "${incoming.body.slice(0, 40)}"`
+              );
+            }
           } else if (
             msg.type === "remote_ops" &&
             Array.isArray(msg.ops) &&
@@ -611,6 +652,16 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
     },
     [project.activePageId]
   );
+
+  const broadcastComment = useCallback((comment: TaskCommentItem) => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(
+      JSON.stringify({
+        type: "comment_added",
+        data: comment,
+      })
+    );
+  }, []);
 
   const commitProject = useCallback(
     (updater: (prev: ProjectData) => ProjectData, recordHistory = true) => {
@@ -1149,6 +1200,11 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       roomConnected,
       remoteCursors,
       reportActiveRow,
+      comments,
+      setComments,
+      activeCommentRowId,
+      setActiveCommentRowId,
+      broadcastComment,
       lang,
       sidebarTab,
       sidebarCollapsed,
@@ -1210,6 +1266,11 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       roomConnected,
       remoteCursors,
       reportActiveRow,
+      comments,
+      setComments,
+      activeCommentRowId,
+      setActiveCommentRowId,
+      broadcastComment,
       lang,
       sidebarTab,
       sidebarCollapsed,

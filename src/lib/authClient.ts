@@ -393,6 +393,7 @@ export interface ProjectChangeItem {
   fieldLabel: string;
   oldValue: string;
   newValue: string;
+  hasSnapshot?: number | boolean;
   createdAt: string;
 }
 
@@ -409,4 +410,88 @@ export async function getProjectChanges(
   if (!res.ok) throw new Error("Failed to load change history");
   const json = (await res.json()) as { changes: ProjectChangeItem[] };
   return json.changes || [];
+}
+
+export async function restoreProjectSnapshot(
+  projectId: string,
+  changeId: string
+): Promise<{
+  id: string;
+  name: string;
+  version: number;
+  data: ProjectData;
+}> {
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/changes/${encodeURIComponent(changeId)}/restore`,
+    { method: "POST", credentials: "include" }
+  );
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error || "Failed to restore version");
+  }
+  return (await res.json()) as {
+    id: string;
+    name: string;
+    version: number;
+    data: ProjectData;
+  };
+}
+
+export interface TaskCommentItem {
+  id: string;
+  projectId: string;
+  rowId: string;
+  userId: string;
+  userName: string;
+  body: string;
+  mentions: string;
+  createdAt: string;
+}
+
+export async function getProjectComments(
+  projectId: string,
+  rowId?: string
+): Promise<TaskCommentItem[]> {
+  const qs = rowId ? `?rowId=${encodeURIComponent(rowId)}` : "";
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/comments${qs}`,
+    { credentials: "include" }
+  );
+  if (!res.ok) throw new Error("Failed to load comments");
+  const json = (await res.json()) as { comments: TaskCommentItem[] };
+  return json.comments || [];
+}
+
+export async function addTaskComment(
+  projectId: string,
+  rowId: string,
+  body: string,
+  mentions: string[] = []
+): Promise<TaskCommentItem> {
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/comments`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ rowId, body, mentions }),
+    }
+  );
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error || "Failed to post comment");
+  }
+  const json = (await res.json()) as { comment: TaskCommentItem };
+  return json.comment;
+}
+
+export async function deleteTaskComment(
+  projectId: string,
+  commentId: string
+): Promise<void> {
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/comments/${encodeURIComponent(commentId)}`,
+    { method: "DELETE", credentials: "include" }
+  );
+  if (!res.ok) throw new Error("Failed to delete comment");
 }

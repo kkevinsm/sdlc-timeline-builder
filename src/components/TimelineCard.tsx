@@ -64,6 +64,8 @@ export function TimelineCard({
     reorderRow,
     remoteCursors,
     reportActiveRow,
+    comments,
+    setActiveCommentRowId,
     t,
   } = useTimeline();
   const { page, cols, monthGroups, colW, visibleRows, tu, railMarks } = model;
@@ -958,6 +960,9 @@ export function TimelineCard({
               const rowEditors = Object.values(remoteCursors).filter(
                 (c) => c.pageId === page.id && c.rowId === it.row.id
               );
+              const rowCommentCount = comments.filter(
+                (c) => c.rowId === it.row.id
+              ).length;
 
               return (
                 <div
@@ -1069,6 +1074,28 @@ export function TimelineCard({
                                 {ed.name.split(" ")[0]}
                               </span>
                             ))}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveCommentRowId(it.row.id);
+                              }}
+                              title={
+                                lang === "en"
+                                  ? "Task comments"
+                                  : "Komentar tugas"
+                              }
+                              className={`shrink-0 inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                                rowCommentCount > 0
+                                  ? "bg-[var(--brand-50)] text-[var(--brand-700)]"
+                                  : "text-[var(--muted-2)] hover:text-[var(--brand-700)] hover:bg-[var(--brand-50)]"
+                              }`}
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                              </svg>
+                              {rowCommentCount > 0 && <span>{rowCommentCount}</span>}
+                            </button>
                           </div>
                         );
                       }

@@ -111,10 +111,24 @@ CREATE TABLE IF NOT EXISTS project_changes (
   fieldLabel TEXT NOT NULL,
   oldValue TEXT,
   newValue TEXT,
+  snapshotData TEXT,
   createdAt TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_project_changes_proj ON project_changes(projectId, createdAt DESC);
+
+CREATE TABLE IF NOT EXISTS task_comments (
+  id TEXT PRIMARY KEY NOT NULL,
+  projectId TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  rowId TEXT NOT NULL,
+  userId TEXT NOT NULL,
+  userName TEXT NOT NULL,
+  body TEXT NOT NULL,
+  mentions TEXT NOT NULL DEFAULT '[]',
+  createdAt TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_comments_proj ON task_comments(projectId, rowId, createdAt ASC);
 CREATE INDEX IF NOT EXISTS idx_ws_members_user ON workspace_members(userId);
 CREATE INDEX IF NOT EXISTS idx_ws_invites_token ON workspace_invites(token);
 CREATE INDEX IF NOT EXISTS idx_session_token ON session(token);

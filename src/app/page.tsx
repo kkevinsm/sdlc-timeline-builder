@@ -17,6 +17,7 @@ import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { PublicLanding } from "@/components/PublicLanding";
 import { Sidebar } from "@/components/Sidebar/Sidebar";
 import { Stage } from "@/components/Stage";
+import { TaskCommentsDrawer } from "@/components/TaskCommentsDrawer";
 import {
   acceptWorkspaceInvite,
   authClient,
@@ -238,6 +239,7 @@ function WorkspaceShell() {
       <CloudProjectsModal />
       <ShareModal />
       <ChangesDrawer />
+      <TaskCommentsDrawer />
       {notice && (
         <div
           role="status"
