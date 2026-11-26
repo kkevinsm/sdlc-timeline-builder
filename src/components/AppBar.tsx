@@ -23,6 +23,8 @@ export function AppBar() {
     loadProject,
     cloudProjectId,
     setCloudProjectId,
+    roomUsers,
+    roomConnected,
     t,
     showNotice,
   } = useTimeline();
@@ -291,6 +293,15 @@ export function AppBar() {
 
       {session?.user ? (
         <div className="flex items-center gap-1.5 ml-1">
+          {roomConnected && roomUsers.length > 0 && (
+            <div
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/15 text-white text-[11.5px] font-semibold border border-white/20"
+              title={roomUsers.map((u) => `${u.name} (${u.role})`).join(", ")}
+            >
+              <span className="w-2 h-2 rounded-full bg-[#4ADE80] animate-pulse" />
+              <span>{roomUsers.length} online</span>
+            </div>
+          )}
           <button
             type="button"
             className="abtn light"

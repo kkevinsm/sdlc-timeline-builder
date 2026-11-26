@@ -23,10 +23,34 @@ interface AssetsFetcher {
   fetch(request: Request): Promise<Response>;
 }
 
+interface DurableObjectStubLike {
+  fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+}
+
+interface DurableObjectNamespaceLike {
+  idFromName(name: string): unknown;
+  get(id: unknown): DurableObjectStubLike;
+}
+
+type WorkerWebSocket = WebSocket & {
+  serializeAttachment(value: unknown): void;
+  deserializeAttachment(): unknown;
+};
+
+interface DurableObjectStateLike {
+  acceptWebSocket(ws: WebSocket): void;
+  getWebSockets(): WorkerWebSocket[];
+}
+
+declare const WebSocketPair: {
+  new (): { 0: WorkerWebSocket; 1: WorkerWebSocket };
+};
+
 export interface Env {
   ASSETS: AssetsFetcher;
   DB: D1DatabaseLike;
   SDLC_TIMELINE_STORAGE: KVNamespaceLike;
+  TIMELINE_ROOM: DurableObjectNamespaceLike;
   BETTER_AUTH_SECRET?: string;
   BETTER_AUTH_URL?: string;
   GOOGLE_CLIENT_ID?: string;
@@ -432,7 +456,8 @@ const worker = {
     if (
       url.pathname.startsWith("/api/workspaces") ||
       url.pathname.startsWith("/api/invites/") ||
-      url.pathname.startsWith("/api/projects")
+      url.pathname.startsWith("/api/projects") ||
+      url.pathname.startsWith("/api/rooms/")
     ) {
       const auth = createAuth(env, url.origin);
       const session = await auth.api.getSession({ headers: request.headers });
@@ -441,6 +466,30 @@ const worker = {
       }
       const userId = session.user.id;
       const userLabel = session.user.name || session.user.email || userId;
+
+      // WebSocket room upgrade for real-time collaboration
+      if (url.pathname.startsWith("/api/rooms/") && url.pathname.endsWith("/ws")) {
+        if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+          return jsonRes({ error: "Expected WebSocket upgrade" }, 426);
+        }
+        const projectId = url.pathname
+          .replace("/api/rooms/", "")
+          .replace("/ws", "")
+          .replace(/[^a-zA-Z0-9_-]/g, "");
+        if (!projectId) return jsonRes({ error: "Missing projectId" }, 400);
+
+        const access = await getProjectRowAndRole(env.DB, projectId, userId);
+        if (!access) return jsonRes({ error: "Not found" }, 404);
+
+        const roomId = env.TIMELINE_ROOM.idFromName(projectId);
+        const stub = env.TIMELINE_ROOM.get(roomId);
+        const headers = new Headers(request.headers);
+        headers.set("x-user-id", userId);
+        headers.set("x-user-name", userLabel);
+        headers.set("x-user-email", session.user.email || "");
+        headers.set("x-user-role", access.role);
+        return stub.fetch(new Request(request.url, { headers }));
+      }
 
       // Accept workspace invite
       if (url.pathname.startsWith("/api/invites/") && url.pathname.endsWith("/accept") && request.method === "POST") {
@@ -655,5 +704,211 @@ const worker = {
     return env.ASSETS.fetch(request);
   },
 };
+
+interface RoomMemberAttachment {
+  userId: string;
+  name: string;
+  email: string;
+  role: MemberRole;
+  color: string;
+}
+
+const PRESENCE_COLORS = [
+  "#15803D",
+  "#1D4ED8",
+  "#7C3AED",
+  "#B45309",
+  "#BE123C",
+  "#0F766E",
+];
+
+function colorForUser(userId: string): string {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
+  }
+  return PRESENCE_COLORS[hash % PRESENCE_COLORS.length];
+}
+
+export class TimelineRoom {
+  constructor(
+    private state: DurableObjectStateLike,
+    private env: Env
+  ) {}
+
+  private getPresenceUsers(exclude?: WebSocket): Array<{
+    userId: string;
+    name: string;
+    role: MemberRole;
+    color: string;
+  }> {
+    const byUser = new Map<
+      string,
+      { userId: string; name: string; role: MemberRole; color: string }
+    >();
+    for (const sock of this.state.getWebSockets()) {
+      if (sock === exclude) continue;
+      const meta = sock.deserializeAttachment() as RoomMemberAttachment | null;
+      if (meta && !byUser.has(meta.userId)) {
+        byUser.set(meta.userId, {
+          userId: meta.userId,
+          name: meta.name,
+          role: meta.role,
+          color: meta.color,
+        });
+      }
+    }
+    return Array.from(byUser.values());
+  }
+
+  private broadcast(payload: unknown, exclude?: WebSocket) {
+    const encoded = JSON.stringify(payload);
+    for (const sock of this.state.getWebSockets()) {
+      if (sock === exclude) continue;
+      try {
+        sock.send(encoded);
+      } catch {
+        // Ignore closed socket
+      }
+    }
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+      return jsonRes({ error: "Expected WebSocket upgrade" }, 426);
+    }
+
+    const userId = request.headers.get("x-user-id") || "";
+    const name = request.headers.get("x-user-name") || "User";
+    const email = request.headers.get("x-user-email") || "";
+    const role = (request.headers.get("x-user-role") as MemberRole) || "viewer";
+
+    if (!userId) {
+      return jsonRes({ error: "Unauthorized" }, 401);
+    }
+
+    const pair = new WebSocketPair();
+    const client = pair[0];
+    const server = pair[1];
+
+    this.state.acceptWebSocket(server);
+    const attachment: RoomMemberAttachment = {
+      userId,
+      name,
+      email,
+      role,
+      color: colorForUser(userId),
+    };
+    server.serializeAttachment(attachment);
+
+    this.broadcast({
+      type: "presence",
+      users: this.getPresenceUsers(),
+    });
+
+    return new Response(null, {
+      status: 101,
+      webSocket: client,
+    } as ResponseInit);
+  }
+
+  async webSocketMessage(ws: WorkerWebSocket, message: string | ArrayBuffer) {
+    const text =
+      typeof message === "string"
+        ? message
+        : new TextDecoder().decode(message);
+
+    let msg: {
+      type?: string;
+      version?: number;
+      updatedAt?: string;
+      data?: unknown;
+      pageId?: number | null;
+      rowId?: string | null;
+    } | null = null;
+
+    try {
+      msg = JSON.parse(text);
+    } catch {
+      return;
+    }
+    if (!msg?.type) return;
+
+    if (msg.type === "ping") {
+      try {
+        ws.send(JSON.stringify({ type: "pong", ts: Date.now() }));
+      } catch {
+        // Ignore
+      }
+      return;
+    }
+
+    const meta = ws.deserializeAttachment() as RoomMemberAttachment | null;
+    if (!meta) return;
+
+    if (msg.type === "state_update") {
+      if (meta.role === "viewer") {
+        try {
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              error: "Viewers cannot broadcast edits",
+            })
+          );
+        } catch {
+          // Ignore
+        }
+        return;
+      }
+
+      this.broadcast(
+        {
+          type: "remote_update",
+          senderId: meta.userId,
+          senderName: meta.name,
+          version: msg.version ?? null,
+          updatedAt: msg.updatedAt ?? new Date().toISOString(),
+          data: msg.data,
+        },
+        ws
+      );
+      return;
+    }
+
+    if (msg.type === "cursor") {
+      this.broadcast(
+        {
+          type: "cursor",
+          userId: meta.userId,
+          name: meta.name,
+          color: meta.color,
+          pageId: msg.pageId ?? null,
+          rowId: msg.rowId ?? null,
+        },
+        ws
+      );
+    }
+  }
+
+  async webSocketClose(ws: WorkerWebSocket) {
+    this.broadcast(
+      {
+        type: "presence",
+        users: this.getPresenceUsers(ws),
+      },
+      ws
+    );
+  }
+
+  async webSocketError(ws: WorkerWebSocket) {
+    this.broadcast(
+      {
+        type: "presence",
+        users: this.getPresenceUsers(ws),
+      },
+      ws
+    );
+  }
+}
 
 export default worker;

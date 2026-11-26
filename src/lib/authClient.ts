@@ -7,6 +7,13 @@ export const authClient = createAuthClient({
 
 export type MemberRole = "owner" | "editor" | "viewer";
 
+export interface PresenceUser {
+  userId: string;
+  name: string;
+  role: MemberRole;
+  color: string;
+}
+
 export interface CloudProjectMeta {
   id: string;
   name: string;

@@ -32,5 +32,19 @@
       "database_name": "sdlc-timeline-db",
       "database_id": "8c453481-cdce-475f-a153-97bad1a9caaf"
     }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "TIMELINE_ROOM",
+        "class_name": "TimelineRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["TimelineRoom"]
+    }
   ]
 }

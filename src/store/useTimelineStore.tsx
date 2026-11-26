@@ -25,6 +25,7 @@ import {
   loadCloudProject,
   saveCloudProject,
   type MemberRole,
+  type PresenceUser,
 } from "@/lib/authClient";
 import type {
   DepType,
@@ -51,6 +52,8 @@ interface TimelineContextValue {
   setCloudProjectRole: (role: MemberRole) => void;
   cloudProjectVersion: number | null;
   setCloudProjectVersion: (version: number | null) => void;
+  roomUsers: PresenceUser[];
+  roomConnected: boolean;
   lang: LangCode;
   sidebarTab: SidebarTab;
   sidebarCollapsed: boolean;
@@ -121,12 +124,21 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [cloudProjectRole, setCloudProjectRole] = useState<MemberRole>("owner");
   const [cloudProjectVersion, setCloudProjectVersion] = useState<number | null>(null);
+  const [roomUsers, setRoomUsers] = useState<PresenceUser[]>([]);
+  const [roomConnected, setRoomConnected] = useState(false);
   const [hydratedForUser, setHydratedForUser] = useState<string | null>(null);
 
   const openModal = useCallback((m: Exclude<ModalKind, null>) => setActiveModal(m), []);
   const closeModal = useCallback(() => setActiveModal(null), []);
 
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const lastSyncedJsonRef = useRef<string>("");
+  const cloudVersionRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    cloudVersionRef.current = cloudProjectVersion;
+  }, [cloudProjectVersion]);
 
   // Hydrate language once on mount & clear legacy shared key
   useEffect(() => {
@@ -251,19 +263,55 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
         // Ignore quota errors
       }
       if (cloudProjectId && cloudProjectRole !== "viewer") {
+        const serialized = JSON.stringify(project);
+        if (serialized === lastSyncedJsonRef.current) {
+          setSaveState("saved");
+          return;
+        }
         try {
           const res = await saveCloudProject(cloudProjectId, project, {
             workspaceId: activeWorkspaceId,
+            expectedVersion: cloudVersionRef.current ?? undefined,
           });
+          lastSyncedJsonRef.current = serialized;
+          cloudVersionRef.current = res.version;
           setCloudProjectVersion(res.version);
-        } catch {
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(
+              JSON.stringify({
+                type: "state_update",
+                version: res.version,
+                updatedAt: res.updatedAt,
+                data: project,
+              })
+            );
+          }
+        } catch (err) {
+          if (err instanceof Error && err.message === "CONFLICT") {
+            try {
+              const latest = await loadCloudProject(cloudProjectId);
+              if (latest?.data?.pages?.length > 0) {
+                lastSyncedJsonRef.current = JSON.stringify(latest.data);
+                cloudVersionRef.current = latest.version ?? null;
+                setCloudProjectVersion(latest.version ?? null);
+                setProject(latest.data);
+                setNotice(
+                  lang === "en"
+                    ? "Synced newer version from team."
+                    : "Menyinkronkan versi terbaru dari tim."
+                );
+              }
+            } catch {
+              // Ignore reload error
+            }
+          }
           // Keep local draft safe if offline/expired
         }
       }
       setSaveState("saved");
     }, 350);
     return () => clearTimeout(timer);
-  }, [project, userId, hydratedForUser, cloudProjectId, activeWorkspaceId, cloudProjectRole]);
+  }, [project, userId, hydratedForUser, cloudProjectId, activeWorkspaceId, cloudProjectRole, lang]);
 
   const setLang = useCallback((next: LangCode) => {
     setLangState(next);
@@ -284,6 +332,101 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
     if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
     noticeTimerRef.current = setTimeout(() => setNotice(null), 2600);
   }, []);
+
+  // Real-time WebSocket room connection for active cloud project
+  useEffect(() => {
+    if (!userId || hydratedForUser !== userId || !cloudProjectId || typeof window === "undefined") {
+      wsRef.current?.close();
+      wsRef.current = null;
+      const resetId = setTimeout(() => {
+        setRoomConnected(false);
+        setRoomUsers([]);
+      }, 0);
+      return () => clearTimeout(resetId);
+    }
+
+    let closed = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let backoffMs = 1000;
+
+    const connect = () => {
+      if (closed) return;
+      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${proto}//${window.location.host}/api/rooms/${encodeURIComponent(cloudProjectId)}/ws`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (closed) return;
+        backoffMs = 1000;
+        setRoomConnected(true);
+        pingTimer = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ping" }));
+          }
+        }, 25000);
+      };
+
+      ws.onmessage = (event) => {
+        if (closed || typeof event.data !== "string") return;
+        try {
+          const msg = JSON.parse(event.data) as {
+            type?: string;
+            users?: PresenceUser[];
+            senderId?: string;
+            senderName?: string;
+            version?: number | null;
+            data?: ProjectData;
+          };
+          if (msg.type === "presence") {
+            setRoomUsers(Array.isArray(msg.users) ? msg.users : []);
+          } else if (msg.type === "remote_update" && msg.data?.pages?.length) {
+            lastSyncedJsonRef.current = JSON.stringify(msg.data);
+            if (typeof msg.version === "number") {
+              cloudVersionRef.current = msg.version;
+              setCloudProjectVersion(msg.version);
+            }
+            setProject(msg.data);
+            if (msg.senderName && msg.senderId !== userId) {
+              showNotice(
+                lang === "en"
+                  ? `Updated by ${msg.senderName}`
+                  : `Diperbarui oleh ${msg.senderName}`
+              );
+            }
+          }
+        } catch {
+          // Ignore malformed WS message
+        }
+      };
+
+      ws.onclose = () => {
+        if (pingTimer) {
+          clearInterval(pingTimer);
+          pingTimer = null;
+        }
+        if (wsRef.current === ws) {
+          wsRef.current = null;
+        }
+        setRoomConnected(false);
+        if (!closed) {
+          reconnectTimer = setTimeout(connect, backoffMs);
+          backoffMs = Math.min(backoffMs * 2, 10000);
+        }
+      };
+    };
+
+    const initTimer = setTimeout(connect, 0);
+
+    return () => {
+      closed = true;
+      clearTimeout(initTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (pingTimer) clearInterval(pingTimer);
+      wsRef.current?.close();
+      wsRef.current = null;
+    };
+  }, [userId, hydratedForUser, cloudProjectId, lang, showNotice]);
 
   const commitProject = useCallback(
     (updater: (prev: ProjectData) => ProjectData, recordHistory = true) => {
@@ -734,6 +877,8 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       setCloudProjectRole,
       cloudProjectVersion,
       setCloudProjectVersion,
+      roomUsers,
+      roomConnected,
       lang,
       sidebarTab,
       sidebarCollapsed,
@@ -787,6 +932,8 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       setCloudProjectRole,
       cloudProjectVersion,
       setCloudProjectVersion,
+      roomUsers,
+      roomConnected,
       lang,
       sidebarTab,
       sidebarCollapsed,
