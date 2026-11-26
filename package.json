@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:worker": "npx -y wrangler@latest dev",
-    "dev:local": "npm run build && npx -y wrangler@latest dev",
+    "dev:worker": "npm run db:local:init && npx -y wrangler@latest dev",
+    "dev:local": "npm run build && npm run db:local:init && npx -y wrangler@latest dev",
     "db:local:init": "npx -y wrangler@latest d1 execute sdlc-timeline-db --local --file=./schema.sql",
     "build": "next build --webpack",
     "start": "next start",

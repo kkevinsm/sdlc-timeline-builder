@@ -160,7 +160,9 @@ function createAuth(env: Env, origin: string) {
       "http://localhost:8787",
       "http://127.0.0.1:3000",
       "http://127.0.0.1:8787",
-      ...(env.BETTER_AUTH_URL?.startsWith("http://localhost")
+      ...(env.BETTER_AUTH_URL?.startsWith("http://localhost") ||
+      env.BETTER_AUTH_URL?.startsWith("http://127.0.0.1") ||
+      origin.startsWith("http://tlb.web.id")
         ? ["http://tlb.web.id"]
         : []),
     ],
