@@ -1700,14 +1700,20 @@ select.inp.sm {
 }
 
 /* ───────── Empty State Overlay ───────── */
-.tl-empty {
+.tl-empty-wrap {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  translate: -50% -50%;
-  transform: translateZ(0);
+  inset: 0;
   z-index: 50;
-  width: min(520px, calc(100% - 28px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  pointer-events: none;
+}
+
+.tl-empty {
+  pointer-events: auto;
+  width: min(520px, 100%);
   padding: 20px 24px 24px;
   display: flex;
   flex-direction: column;
@@ -1718,7 +1724,7 @@ select.inp.sm {
   border: 1px solid var(--line);
   border-radius: 18px;
   box-shadow: var(--shadow-lg);
-  max-height: calc(100% - 16px);
+  max-height: 100%;
   overflow-y: auto;
 }
 

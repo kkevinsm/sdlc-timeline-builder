@@ -371,7 +371,8 @@ export function Stage() {
 
         {/* Empty State Overlay */}
         {activePage.rows.length === 0 && (
-          <div className="tl-empty">
+          <div className="tl-empty-wrap">
+            <div className="tl-empty">
             <EmptyArtSvg />
             <h3>{t("empty.title")}</h3>
             <p>{t("empty.desc")}</p>
@@ -414,6 +415,7 @@ export function Stage() {
               <Icon name="wand" size="xs" />
               <span>{t("empty.examples")}</span>
             </button>
+            </div>
           </div>
         )}
       </div>
