@@ -14,6 +14,15 @@ export interface PresenceUser {
   color: string;
 }
 
+export interface CollaboratorCursor {
+  userId: string;
+  name: string;
+  color: string;
+  pageId: number | null;
+  rowId: string | null;
+  updatedAt: number;
+}
+
 export interface CloudProjectMeta {
   id: string;
   name: string;

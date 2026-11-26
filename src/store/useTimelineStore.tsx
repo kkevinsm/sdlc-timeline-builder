@@ -24,6 +24,7 @@ import {
   listCloudProjects,
   loadCloudProject,
   saveCloudProject,
+  type CollaboratorCursor,
   type MemberRole,
   type PresenceUser,
 } from "@/lib/authClient";
@@ -59,6 +60,8 @@ interface TimelineContextValue {
   setCloudProjectVersion: (version: number | null) => void;
   roomUsers: PresenceUser[];
   roomConnected: boolean;
+  remoteCursors: Record<string, CollaboratorCursor>;
+  reportActiveRow: (rowId: string | null) => void;
   lang: LangCode;
   sidebarTab: SidebarTab;
   sidebarCollapsed: boolean;
@@ -131,6 +134,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
   const [cloudProjectVersion, setCloudProjectVersion] = useState<number | null>(null);
   const [roomUsers, setRoomUsers] = useState<PresenceUser[]>([]);
   const [roomConnected, setRoomConnected] = useState(false);
+  const [remoteCursors, setRemoteCursors] = useState<Record<string, CollaboratorCursor>>({});
   const [hydratedForUser, setHydratedForUser] = useState<string | null>(null);
 
   const openModal = useCallback((m: Exclude<ModalKind, null>) => setActiveModal(m), []);
@@ -385,6 +389,7 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       const resetId = setTimeout(() => {
         setRoomConnected(false);
         setRoomUsers([]);
+        setRemoteCursors({});
       }, 0);
       return () => clearTimeout(resetId);
     }
@@ -422,9 +427,36 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
             version?: number | null;
             ops?: TimelineOp[];
             data?: ProjectData;
+            userId?: string;
+            name?: string;
+            color?: string;
+            pageId?: number | null;
+            rowId?: string | null;
           };
           if (msg.type === "presence") {
-            setRoomUsers(Array.isArray(msg.users) ? msg.users : []);
+            const list = Array.isArray(msg.users) ? msg.users : [];
+            setRoomUsers(list);
+            const activeIds = new Set(list.map((u) => u.userId));
+            setRemoteCursors((prev) => {
+              const next: Record<string, CollaboratorCursor> = {};
+              for (const [uid, cur] of Object.entries(prev)) {
+                if (activeIds.has(uid)) next[uid] = cur;
+              }
+              return next;
+            });
+          } else if (msg.type === "cursor" && msg.userId && msg.userId !== userId) {
+            const uid = msg.userId;
+            setRemoteCursors((prev) => ({
+              ...prev,
+              [uid]: {
+                userId: uid,
+                name: msg.name || "User",
+                color: msg.color || "#1D4ED8",
+                pageId: msg.pageId ?? null,
+                rowId: msg.rowId ?? null,
+                updatedAt: Date.now(),
+              },
+            }));
           } else if (
             msg.type === "remote_ops" &&
             Array.isArray(msg.ops) &&
@@ -520,6 +552,20 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
     }
     prevBroadcastProjectRef.current = project;
   }, [project, userId, hydratedForUser, cloudProjectId, cloudProjectRole]);
+
+  const reportActiveRow = useCallback(
+    (rowId: string | null) => {
+      if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+      wsRef.current.send(
+        JSON.stringify({
+          type: "cursor",
+          pageId: project.activePageId,
+          rowId,
+        })
+      );
+    },
+    [project.activePageId]
+  );
 
   const commitProject = useCallback(
     (updater: (prev: ProjectData) => ProjectData, recordHistory = true) => {
@@ -972,6 +1018,8 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       setCloudProjectVersion,
       roomUsers,
       roomConnected,
+      remoteCursors,
+      reportActiveRow,
       lang,
       sidebarTab,
       sidebarCollapsed,
@@ -1027,6 +1075,8 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       setCloudProjectVersion,
       roomUsers,
       roomConnected,
+      remoteCursors,
+      reportActiveRow,
       lang,
       sidebarTab,
       sidebarCollapsed,

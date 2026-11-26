@@ -62,6 +62,8 @@ export function TimelineCard({
     addTaskAfter,
     moveRow,
     reorderRow,
+    remoteCursors,
+    reportActiveRow,
     t,
   } = useTimeline();
   const { page, cols, monthGroups, colW, visibleRows, tu, railMarks } = model;
@@ -947,13 +949,24 @@ export function TimelineCard({
                   ? "bg-[#FAFBF9]"
                   : "bg-white";
 
+              const rowEditors = Object.values(remoteCursors).filter(
+                (c) => c.pageId === page.id && c.rowId === it.row.id
+              );
+
               return (
                 <div
                   key={it.row.id}
                   className={`flex items-center border-t border-[#EEF2EF] relative ${rowBg} ${
                     isDropTarget ? "ring-2 ring-inset ring-[var(--brand)]" : ""
                   }`}
-                  style={{ height: page.rh }}
+                  style={{
+                    height: page.rh,
+                    boxShadow: rowEditors.length
+                      ? `inset 3px 0 0 ${rowEditors[0].color}`
+                      : undefined,
+                  }}
+                  onClick={() => reportActiveRow(it.row.id)}
+                  onFocusCapture={() => reportActiveRow(it.row.id)}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setContextMenu({
@@ -1040,6 +1053,16 @@ export function TimelineCard({
                                 {it.row.name}
                               </span>
                             )}
+                            {rowEditors.slice(0, 2).map((ed) => (
+                              <span
+                                key={ed.userId}
+                                className="px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white shrink-0 leading-none"
+                                style={{ backgroundColor: ed.color }}
+                                title={`${ed.name}`}
+                              >
+                                {ed.name.split(" ")[0]}
+                              </span>
+                            ))}
                           </div>
                         );
                       }

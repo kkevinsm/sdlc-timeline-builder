@@ -295,11 +295,27 @@ export function AppBar() {
         <div className="flex items-center gap-1.5 ml-1">
           {roomConnected && roomUsers.length > 0 && (
             <div
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/15 text-white text-[11.5px] font-semibold border border-white/20"
+              className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/15 text-white text-[11.5px] font-semibold border border-white/20"
               title={roomUsers.map((u) => `${u.name} (${u.role})`).join(", ")}
             >
-              <span className="w-2 h-2 rounded-full bg-[#4ADE80] animate-pulse" />
-              <span>{roomUsers.length} online</span>
+              <div className="flex items-center -space-x-1.5">
+                {roomUsers.slice(0, 4).map((u) => (
+                  <span
+                    key={u.userId}
+                    className="w-5 h-5 rounded-full text-[10px] font-extrabold text-white grid place-items-center ring-2 ring-[#0E5A2B]"
+                    style={{ backgroundColor: u.color }}
+                  >
+                    {(u.name || "U")[0].toUpperCase()}
+                  </span>
+                ))}
+                {roomUsers.length > 4 && (
+                  <span className="w-5 h-5 rounded-full text-[9.5px] font-extrabold bg-white text-[var(--brand-700)] grid place-items-center ring-2 ring-[#0E5A2B]">
+                    +{roomUsers.length - 4}
+                  </span>
+                )}
+              </div>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80] animate-pulse" />
+              <span>{roomUsers.length}</span>
             </div>
           )}
           <button
