@@ -377,11 +377,11 @@ export function ShareModal() {
                         info?.project.generalRole || "viewer"
                       )
                     }
-                    className={`px-2.5 py-1 rounded-md text-[11.5px] font-bold transition-colors ${
-                      !isAnyone
-                        ? "bg-[#1F1916] text-white"
-                        : "text-[var(--ink-2)] hover:bg-[var(--brand-50)]"
-                    }`}
+                    style={{
+                      backgroundColor: !isAnyone ? "#1F1916" : "transparent",
+                      color: !isAnyone ? "#FFFFFF" : "var(--ink-2)",
+                    }}
+                    className="px-2.5 py-1 rounded-md text-[11.5px] font-bold transition-colors"
                   >
                     {lang === "en" ? "Private (Invited)" : "Privat (Diundang)"}
                   </button>
@@ -394,11 +394,11 @@ export function ShareModal() {
                         info?.project.generalRole || "viewer"
                       )
                     }
-                    className={`px-2.5 py-1 rounded-md text-[11.5px] font-bold transition-colors ${
-                      isAnyone
-                        ? "bg-[var(--brand)] text-white"
-                        : "text-[var(--ink-2)] hover:bg-[var(--brand-50)]"
-                    }`}
+                    style={{
+                      backgroundColor: isAnyone ? "var(--brand)" : "transparent",
+                      color: isAnyone ? "#FFFFFF" : "var(--ink-2)",
+                    }}
+                    className="px-2.5 py-1 rounded-md text-[11.5px] font-bold transition-colors"
                   >
                     {lang === "en" ? "Anyone with Link" : "Publik via Link"}
                   </button>
@@ -426,11 +426,17 @@ export function ShareModal() {
                       type="button"
                       disabled={!isOwner || busy}
                       onClick={() => handleGeneralChange("anyone", "viewer")}
-                      className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold ${
-                        info?.project.generalRole === "viewer"
-                          ? "bg-[var(--brand-700)] text-white"
-                          : "text-[var(--ink-2)]"
-                      }`}
+                      style={{
+                        backgroundColor:
+                          info?.project.generalRole === "viewer"
+                            ? "var(--brand-700)"
+                            : "transparent",
+                        color:
+                          info?.project.generalRole === "viewer"
+                            ? "#FFFFFF"
+                            : "var(--ink-2)",
+                      }}
+                      className="px-2.5 py-0.5 rounded-md text-[11px] font-bold"
                     >
                       {lang === "en" ? "Viewer" : "Pelihat"}
                     </button>
@@ -438,11 +444,17 @@ export function ShareModal() {
                       type="button"
                       disabled={!isOwner || busy}
                       onClick={() => handleGeneralChange("anyone", "editor")}
-                      className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold ${
-                        info?.project.generalRole === "editor"
-                          ? "bg-[var(--brand-700)] text-white"
-                          : "text-[var(--ink-2)]"
-                      }`}
+                      style={{
+                        backgroundColor:
+                          info?.project.generalRole === "editor"
+                            ? "var(--brand-700)"
+                            : "transparent",
+                        color:
+                          info?.project.generalRole === "editor"
+                            ? "#FFFFFF"
+                            : "var(--ink-2)",
+                      }}
+                      className="px-2.5 py-0.5 rounded-md text-[11px] font-bold"
                     >
                       Editor
                     </button>
@@ -489,14 +501,14 @@ export function ShareModal() {
                         ? "teammate@company.com"
                         : "email.rekan@perusahaan.com"
                     }
-                    className="inp flex-1"
+                    className="inp flex-1 min-w-0"
                   />
                   <select
                     value={inviteRole}
                     onChange={(e) =>
                       setInviteRole(e.target.value as "viewer" | "editor")
                     }
-                    className="inp w-[108px]"
+                    className="inp !w-[114px] shrink-0"
                   >
                     <option value="viewer">
                       {lang === "en" ? "Viewer" : "Pelihat"}
