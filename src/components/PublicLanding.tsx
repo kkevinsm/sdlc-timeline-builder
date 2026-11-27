@@ -8,18 +8,12 @@ import { useTimeline } from "@/store/useTimelineStore";
 
 export function PublicLanding() {
   const { lang, setLang, openModal } = useTimeline();
-  const [oauthError, setOauthError] = React.useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const errs = params.getAll("error");
-    const desc = params.get("error_description");
-    if (errs.length > 0 || params.has("invite")) {
+    if (params.has("invite")) {
       const id = setTimeout(() => {
-        if (errs.length > 0) {
-          setOauthError(`${errs.join(" | ")}${desc ? ` — ${desc}` : ""}`);
-        }
         openModal("auth");
       }, 0);
       return () => clearTimeout(id);
@@ -159,11 +153,6 @@ export function PublicLanding() {
                 {lang === "en" ? "Privacy Policy" : "Kebijakan Privasi"}
               </Link>
             </div>
-            {oauthError && (
-              <div className="mt-2 px-4 py-2 rounded-xl bg-red-950/70 border border-red-300/40 text-red-100 text-[12.5px] font-semibold max-w-xl">
-                OAuth Error: {oauthError}
-              </div>
-            )}
           </div>
         </section>
 

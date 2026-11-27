@@ -18,15 +18,6 @@ export function AuthModal({ blocking = false }: { blocking?: boolean }) {
   useEffect(() => {
     if (!blocking && activeModal !== "auth") return;
     fetchHealthStatus().then((h) => setGoogleEnabled(h.googleEnabled));
-    try {
-      const errParams = new URLSearchParams(window.location.search).getAll("error");
-      if (errParams.length > 0) {
-        const id = setTimeout(() => setError(`OAuth error: ${errParams.join(" | ")}`), 0);
-        return () => clearTimeout(id);
-      }
-    } catch {
-      // Ignore
-    }
   }, [activeModal, blocking]);
 
   if (!blocking && activeModal !== "auth") return null;

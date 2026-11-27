@@ -642,26 +642,8 @@ const worker = {
     }
 
     if (url.pathname.startsWith("/api/auth")) {
-      try {
-        const auth = createAuth(env, url.origin);
-        const res = await auth.handler(request);
-        if (url.pathname.includes("/callback/")) {
-          console.log(
-            "[auth-callback]",
-            url.pathname,
-            res.status,
-            res.headers.get("location") || ""
-          );
-        }
-        return res;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error("[auth-exception]", url.pathname, msg);
-        return Response.redirect(
-          `${url.origin}/?error=auth_exception&error_description=${encodeURIComponent(msg)}`,
-          302
-        );
-      }
+      const auth = createAuth(env, url.origin);
+      return auth.handler(request);
     }
 
     // Public invite preview (metadata only, no sensitive project data)
