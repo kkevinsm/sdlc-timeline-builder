@@ -643,7 +643,16 @@ const worker = {
 
     if (url.pathname.startsWith("/api/auth")) {
       const auth = createAuth(env, url.origin);
-      return auth.handler(request);
+      const res = await auth.handler(request);
+      if (url.pathname.includes("/callback/")) {
+        console.log(
+          "[auth-callback]",
+          url.pathname,
+          res.status,
+          res.headers.get("location") || ""
+        );
+      }
+      return res;
     }
 
     // Public invite preview (metadata only, no sensitive project data)

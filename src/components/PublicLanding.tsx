@@ -8,12 +8,20 @@ import { useTimeline } from "@/store/useTimelineStore";
 
 export function PublicLanding() {
   const { lang, setLang, openModal } = useTimeline();
+  const [oauthError, setOauthError] = React.useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    if (params.has("error") || params.has("invite")) {
-      const id = setTimeout(() => openModal("auth"), 0);
+    const errs = params.getAll("error");
+    const desc = params.get("error_description");
+    if (errs.length > 0 || params.has("invite")) {
+      const id = setTimeout(() => {
+        if (errs.length > 0) {
+          setOauthError(`${errs.join(" | ")}${desc ? ` — ${desc}` : ""}`);
+        }
+        openModal("auth");
+      }, 0);
       return () => clearTimeout(id);
     }
   }, [openModal]);
@@ -111,7 +119,8 @@ export function PublicLanding() {
             <button
               type="button"
               onClick={() => openModal("auth")}
-              className="px-4 py-2 rounded-full bg-white text-[#9A3412] font-bold text-[13px] hover:bg-[#FFF7ED] transition-colors shadow-sm"
+              style={{ backgroundColor: "#FFFFFF", color: "#9A3412" }}
+              className="px-4 py-2 rounded-full font-bold text-[13px] hover:opacity-95 transition-opacity shadow-sm"
             >
               {lang === "en" ? "Sign in" : "Masuk"}
             </button>
@@ -138,7 +147,8 @@ export function PublicLanding() {
               <button
                 type="button"
                 onClick={() => openModal("auth")}
-                className="px-6 py-3 rounded-full bg-white text-[#9A3412] font-extrabold text-[14px] hover:bg-[#FFF7ED] shadow-lg transition-transform active:scale-[0.98]"
+                style={{ backgroundColor: "#FFFFFF", color: "#9A3412" }}
+                className="px-6 py-3 rounded-full font-extrabold text-[14px] hover:opacity-95 shadow-lg transition-transform active:scale-[0.98]"
               >
                 {lang === "en" ? "Sign in / Get Started" : "Masuk / Mulai Sekarang"}
               </button>
@@ -149,6 +159,11 @@ export function PublicLanding() {
                 {lang === "en" ? "Privacy Policy" : "Kebijakan Privasi"}
               </Link>
             </div>
+            {oauthError && (
+              <div className="mt-2 px-4 py-2 rounded-xl bg-red-950/70 border border-red-300/40 text-red-100 text-[12.5px] font-semibold max-w-xl">
+                OAuth Error: {oauthError}
+              </div>
+            )}
           </div>
         </section>
 
