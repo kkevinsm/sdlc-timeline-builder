@@ -17,7 +17,8 @@ function formatLocalTodayISO() {
 }
 
 export function SlidePanel() {
-  const { activePage, lang, updateActivePage, t } = useTimeline();
+  const { activePage, lang, updateActivePage, setBaseline, clearBaseline, t } =
+    useTimeline();
   const monthNames = lang === "en" ? MONTH_NAMES_EN : MONTH_NAMES_ID;
 
   const currentMonthOptions = useMemo(() => {
@@ -432,6 +433,45 @@ export function SlidePanel() {
             <span className="tk" />
             <span className="tx">{t("pg.todayline")}</span>
           </label>
+
+          <label className="tgl">
+            <input
+              type="checkbox"
+              checked={Boolean(activePage.showBaseline)}
+              onChange={(e) =>
+                updateActivePage({ showBaseline: e.target.checked })
+              }
+            />
+            <span className="tk" />
+            <span className="tx">
+              <span>{t("pg.baseline")}</span>
+              <small>{t("pg.baseline.d")}</small>
+            </span>
+          </label>
+
+          <div className="hrow" style={{ gap: 6 }}>
+            <button
+              type="button"
+              className="btn sm"
+              style={{ flex: 1, justifyContent: "center" }}
+              onClick={setBaseline}
+            >
+              <span>
+                {activePage.rows.some((r) => r.bar?.baseline)
+                  ? t("pg.baseline.update")
+                  : t("pg.baseline.set")}
+              </span>
+            </button>
+            {activePage.rows.some((r) => r.bar?.baseline) && (
+              <button
+                type="button"
+                className="btn sm ghost"
+                onClick={clearBaseline}
+              >
+                <span>{t("pg.baseline.clear")}</span>
+              </button>
+            )}
+          </div>
 
           <label className="tgl">
             <input

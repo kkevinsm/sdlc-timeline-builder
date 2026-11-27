@@ -19,6 +19,17 @@ export interface DependencyRef {
   type: DepType;
 }
 
+export interface BaselineRange {
+  startMonth?: string;
+  startWeek?: number;
+  startYear?: number;
+  endMonth?: string;
+  endWeek?: number;
+  endYear?: number;
+  sd?: string;
+  ed?: string;
+}
+
 export interface TaskBar {
   startMonth?: string;
   startWeek?: number;
@@ -28,6 +39,7 @@ export interface TaskBar {
   endYear?: number;
   sd?: string;
   ed?: string;
+  baseline?: BaselineRange;
   progress: number;
   status: StatusKey;
   statusLocked?: boolean;
@@ -96,6 +108,7 @@ export interface PageData {
   wdSnap: boolean;
   accent: string;
   showToday: boolean;
+  showBaseline?: boolean;
   groupRollup: boolean;
   showLegend: boolean;
   showOwner: boolean;

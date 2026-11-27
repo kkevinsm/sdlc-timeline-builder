@@ -101,6 +101,8 @@ interface TimelineContextValue {
   addDependency: (taskId: string, predId: string, type: DepType) => void;
   removeDependency: (taskId: string, predId: string) => void;
   recalculateSchedule: () => void;
+  setBaseline: () => void;
+  clearBaseline: () => void;
   deleteRow: (id: string) => void;
   duplicateRow: (id: string) => void;
   addTaskAfter: (afterId: string) => void;
@@ -1009,6 +1011,56 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
     }, true);
   }, [updateActivePage]);
 
+  const setBaseline = useCallback(() => {
+    updateActivePage(
+      (prev) => ({
+        ...prev,
+        showBaseline: true,
+        rows: prev.rows.map((r) => {
+          if (r.type !== "task" || !r.bar) return r;
+          const b = r.bar;
+          return {
+            ...r,
+            bar: {
+              ...b,
+              baseline: {
+                startMonth: b.startMonth,
+                startWeek: b.startWeek,
+                startYear: b.startYear,
+                endMonth: b.endMonth,
+                endWeek: b.endWeek,
+                endYear: b.endYear,
+                sd: b.sd,
+                ed: b.ed,
+              },
+            },
+          };
+        }),
+      }),
+      true
+    );
+    showNotice(
+      lang === "en" ? "Schedule baseline saved!" : "Baseline jadwal disimpan!"
+    );
+  }, [lang, showNotice, updateActivePage]);
+
+  const clearBaseline = useCallback(() => {
+    updateActivePage(
+      (prev) => ({
+        ...prev,
+        showBaseline: false,
+        rows: prev.rows.map((r) => {
+          if (r.type !== "task" || !r.bar?.baseline) return r;
+          const nextBar = { ...r.bar };
+          delete nextBar.baseline;
+          return { ...r, bar: nextBar };
+        }),
+      }),
+      true
+    );
+    showNotice(lang === "en" ? "Baseline cleared!" : "Baseline dihapus!");
+  }, [lang, showNotice, updateActivePage]);
+
   const deleteRow = useCallback(
     (id: string) => {
       updateActivePage(
@@ -1234,6 +1286,8 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       addDependency,
       removeDependency,
       recalculateSchedule,
+      setBaseline,
+      clearBaseline,
       deleteRow,
       duplicateRow,
       addTaskAfter,
@@ -1300,6 +1354,8 @@ export function TimelineProvider({ children }: { children: React.ReactNode }) {
       addDependency,
       removeDependency,
       recalculateSchedule,
+      setBaseline,
+      clearBaseline,
       deleteRow,
       duplicateRow,
       addTaskAfter,

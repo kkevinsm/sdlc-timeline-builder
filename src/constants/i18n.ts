@@ -104,6 +104,12 @@ const ID = {
   "pg.cascade": "Geser task terkait otomatis",
   "pg.cascade.d":
     "Task yang bergantung ikut bergeser saat predecessor-nya digeser",
+  "pg.baseline": "Tampilkan baseline jadwal",
+  "pg.baseline.d":
+    "Garis bayangan jadwal awal di bawah bar aktif untuk melihat deviasi",
+  "pg.baseline.set": "Simpan Baseline",
+  "pg.baseline.update": "Perbarui Baseline",
+  "pg.baseline.clear": "Hapus Baseline",
   "pg.wdsnap": "Hindari akhir pekan & libur",
   "pg.wdsnap.d":
     "Jadwal tidak mulai atau selesai di Sabtu, Minggu, atau hari libur",
@@ -277,6 +283,12 @@ const EN: Record<keyof typeof ID, string> = {
   "pg.cascade": "Auto-shift dependent tasks",
   "pg.cascade.d":
     "Dependent tasks shift automatically when their predecessor moves",
+  "pg.baseline": "Show schedule baseline",
+  "pg.baseline.d":
+    "Ghost bar of initial plan below active bar to track schedule slip",
+  "pg.baseline.set": "Set Baseline",
+  "pg.baseline.update": "Update Baseline",
+  "pg.baseline.clear": "Clear Baseline",
   "pg.wdsnap": "Avoid weekends & holidays",
   "pg.wdsnap.d":
     "Schedules never start or end on Saturday, Sunday, or holidays",

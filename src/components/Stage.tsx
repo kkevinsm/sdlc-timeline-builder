@@ -103,6 +103,8 @@ export function Stage() {
     lang,
     setMode,
     setZoom,
+    updateActivePage,
+    setBaseline,
     openModal,
     recalculateSchedule,
     showNotice,
@@ -318,11 +320,57 @@ export function Stage() {
                 setFilterStatus("all");
                 setFilterOwner("all");
               }}
-              className="h-[26px] px-2 rounded-lg bg-[var(--brand-50)] text-[var(--brand-700)] text-[11px] font-bold hover:bg-[var(--brand-100)]"
+              className="h-[26px] px-2 rounded-lg text-[11px] font-bold text-[#9A3412] bg-[#FFF7ED] border border-[#FED7AA] hover:bg-[#FFEDD5]"
             >
               Reset
             </button>
           )}
+        </div>
+
+        <span className="tb-sep" role="separator" aria-orientation="vertical" />
+
+        <div className="flex items-center gap-1.5" role="group" aria-label="Schedule tools">
+          <button
+            type="button"
+            aria-pressed={activePage.cascade}
+            onClick={() => updateActivePage({ cascade: !activePage.cascade })}
+            title={t("pg.cascade.d")}
+            className={`h-[26px] px-2.5 rounded-lg border text-[11px] font-bold transition-colors ${
+              activePage.cascade
+                ? "bg-[#EEF7F1] border-[#86EFAC] text-[#166534]"
+                : "bg-white border-[var(--line)] text-[var(--ink-2)] hover:bg-[#F7FAF8]"
+            }`}
+          >
+            {lang === "en" ? "Auto-shift" : "Auto-geser"}
+          </button>
+          <button
+            type="button"
+            aria-pressed={Boolean(activePage.showBaseline)}
+            onClick={() => {
+              const hasAny = activePage.rows.some((r) => r.bar?.baseline);
+              if (!hasAny) {
+                setBaseline();
+              } else {
+                updateActivePage({ showBaseline: !activePage.showBaseline });
+              }
+            }}
+            title={t("pg.baseline.d")}
+            className={`h-[26px] px-2.5 rounded-lg border text-[11px] font-bold transition-colors ${
+              activePage.showBaseline
+                ? "bg-[#F1F5F9] border-[#94A3B8] text-[#334155]"
+                : "bg-white border-[var(--line)] text-[var(--ink-2)] hover:bg-[#F7FAF8]"
+            }`}
+          >
+            {activePage.rows.some((r) => r.bar?.baseline)
+              ? activePage.showBaseline
+                ? lang === "en"
+                  ? "Baseline: On"
+                  : "Baseline: Aktif"
+                : lang === "en"
+                  ? "Baseline: Off"
+                  : "Baseline: Nonaktif"
+              : t("pg.baseline.set")}
+          </button>
         </div>
 
         <div className="stats">

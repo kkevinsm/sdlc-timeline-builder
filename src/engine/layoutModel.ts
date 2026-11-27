@@ -46,6 +46,7 @@ export interface TaskItem {
   idx: number;
   group: GroupItem | null;
   bd: BarDates | null;
+  baseBd?: BarDates | null;
   ms: boolean;
   last?: boolean;
   st: StatusKey;
@@ -54,6 +55,8 @@ export interface TaskItem {
   hk: number;
   u0?: number;
   u1?: number;
+  bu0?: number;
+  bu1?: number;
   cl?: boolean;
   cr?: boolean;
 }
@@ -134,6 +137,9 @@ export function buildTimelineModel(
     } else {
       const b = row.bar;
       const bd = barDates(page, b);
+      const baseBd = b?.baseline
+        ? barDates(page, { ...b.baseline, progress: 0, status: "notstarted" })
+        : null;
       const prog = b ? clamp(Number(b.progress) || 0, 0, 100) : 0;
       const task: TaskItem = {
         kind: "task",
@@ -141,6 +147,7 @@ export function buildTimelineModel(
         idx,
         group: curGroup,
         bd,
+        baseBd,
         ms: Boolean(b?.ms),
         st: effStat(page, b),
         auto: Boolean(b && autoStat(page, b)),
@@ -148,6 +155,10 @@ export function buildTimelineModel(
         hk: bd ? countHK(ctx, bd.sd, bd.ed) : 0,
       };
       placeItem(task);
+      if (baseBd && N) {
+        task.bu0 = uAt(cols, baseBd.sd, false);
+        task.bu1 = uAt(cols, baseBd.ed, true);
+      }
       if (curGroup) {
         curGroup.kids.push(task);
         curGroup.n++;

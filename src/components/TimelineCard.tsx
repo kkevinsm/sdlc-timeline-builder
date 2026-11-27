@@ -1164,9 +1164,39 @@ export function TimelineCard({
                     className="relative h-full shrink-0"
                     style={{ width: gridWidth }}
                   >
+                    {page.showBaseline &&
+                      it.bu0 !== undefined &&
+                      it.bu1 !== undefined &&
+                      (() => {
+                        const baseLeft = it.bu0 * model.colW;
+                        const baseWidth = Math.max(
+                          6,
+                          (it.bu1 - it.bu0) * model.colW
+                        );
+                        return (
+                          <>
+                            <div
+                              className="absolute top-[calc(50%+6px)] h-[4px] rounded-full bg-[#64748B]/45 border border-[#475569]/40 pointer-events-none"
+                              style={{ left: baseLeft, width: baseWidth }}
+                            />
+                            {it.ms && (
+                              <div
+                                className="absolute top-[calc(50%+6px)] -translate-y-1/2 -translate-x-1/2 z-10 text-[11px] leading-none text-[#64748B]/80 pointer-events-none"
+                                style={{ left: baseLeft + baseWidth }}
+                              >
+                                ◇
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     {hasBar && (
                       <div
-                        className={`group absolute top-1/2 -translate-y-1/2 h-[14px] rounded-full cursor-grab active:cursor-grabbing select-none touch-none ${
+                        className={`group absolute ${
+                          page.showBaseline && it.bu0 !== undefined
+                            ? "top-[calc(50%-3px)] h-[12px]"
+                            : "top-1/2 h-[14px]"
+                        } -translate-y-1/2 rounded-full cursor-grab active:cursor-grabbing select-none touch-none ${
                           dp ? "ring-2 ring-[var(--accent)]/60" : ""
                         }`}
                         style={{
@@ -1329,6 +1359,34 @@ export function TimelineCard({
                           {datesStr}
                         </span>
                       </div>
+                      {page.showBaseline && item.baseBd && (() => {
+                        const slipDays = Math.round(
+                          (bd.ed.getTime() - item.baseBd.ed.getTime()) /
+                            86400000
+                        );
+                        const slipText =
+                          slipDays > 0
+                            ? `+${slipDays} ${lang === "en" ? "d late" : "hr mundur"}`
+                            : slipDays < 0
+                              ? `${slipDays} ${lang === "en" ? "d early" : "hr maju"}`
+                              : lang === "en"
+                                ? "On plan"
+                                : "Sesuai rencana";
+                        const slipColor =
+                          slipDays > 0
+                            ? "#FCA5A5"
+                            : slipDays < 0
+                              ? "#86EFAC"
+                              : "#CBD5E1";
+                        return (
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-[#9AA8A0]">Baseline</span>
+                            <span className="font-bold text-right" style={{ color: slipColor }}>
+                              {formatRangeLabel(item.baseBd, lang) || fmtD(item.baseBd.ed, lang)} ({slipText})
+                            </span>
+                          </div>
+                        );
+                      })()}
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-[#9AA8A0]">Duration</span>
                         <span className="font-bold text-white text-right">
