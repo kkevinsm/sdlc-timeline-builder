@@ -424,11 +424,11 @@ export function ShareModal() {
                   {isAnyone
                     ? info?.project.generalRole === "editor"
                       ? lang === "en"
-                        ? "Anyone signed in with this link can edit in real time."
-                        : "Siapa saja yang login dengan link ini dapat mengedit langsung."
+                        ? "Anyone with this link can view; signed-in users can edit in real time."
+                        : "Siapa saja dengan link ini dapat melihat; pengguna yang login dapat mengedit langsung."
                       : lang === "en"
-                        ? "Anyone signed in with this link can view in real time."
-                        : "Siapa saja yang login dengan link ini hanya dapat melihat."
+                        ? "Anyone with this link can view (no sign-in required)."
+                        : "Siapa saja dengan link ini dapat melihat (tanpa perlu login)."
                     : lang === "en"
                       ? "Only invited collaborators below can open this timeline."
                       : "Hanya kolaborator yang diundang di bawah yang dapat membuka timeline ini."}

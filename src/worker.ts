@@ -675,6 +675,40 @@ const worker = {
       });
     }
 
+    // Public read-only project access when generalAccess === 'anyone'
+    if (url.pathname.startsWith("/api/public/projects/") && request.method === "GET") {
+      const projectId = url.pathname
+        .replace("/api/public/projects/", "")
+        .replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!projectId) return jsonRes({ error: "Missing projectId" }, 400);
+
+      const row = await env.DB.prepare(
+        "SELECT id, name, data, version, generalAccess, updatedAt FROM projects WHERE id = ?"
+      )
+        .bind(projectId)
+        .first<{
+          id: string;
+          name: string;
+          data: string;
+          version: number;
+          generalAccess: string;
+          updatedAt: string;
+        }>();
+
+      if (!row) return jsonRes({ error: "Project not found" }, 404);
+      if (row.generalAccess !== "anyone") {
+        return jsonRes({ error: "Sign in required to view this project" }, 403);
+      }
+
+      return jsonRes({
+        id: row.id,
+        name: row.name,
+        version: row.version,
+        updatedAt: row.updatedAt,
+        data: JSON.parse(row.data),
+      });
+    }
+
     // All routes below require authenticated session
     if (
       url.pathname.startsWith("/api/workspaces") ||

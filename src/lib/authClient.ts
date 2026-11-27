@@ -153,6 +153,29 @@ export async function loadCloudProject(id: string): Promise<{
   };
 }
 
+export async function loadPublicProject(id: string): Promise<{
+  id: string;
+  name: string;
+  version: number;
+  updatedAt: string;
+  data: ProjectData;
+}> {
+  const res = await fetch(`/api/public/projects/${encodeURIComponent(id)}`);
+  if (res.status === 403) {
+    throw new Error("PRIVATE_PROJECT");
+  }
+  if (!res.ok) {
+    throw new Error("NOT_FOUND");
+  }
+  return (await res.json()) as {
+    id: string;
+    name: string;
+    version: number;
+    updatedAt: string;
+    data: ProjectData;
+  };
+}
+
 export async function deleteCloudProject(id: string): Promise<void> {
   const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
     method: "DELETE",

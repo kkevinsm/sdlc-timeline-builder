@@ -15,6 +15,7 @@ import { PageTabs } from "@/components/PageTabs";
 import { PresentationMode } from "@/components/PresentationMode";
 import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { PublicLanding } from "@/components/PublicLanding";
+import { PublicProjectView } from "@/components/PublicProjectView";
 import { Sidebar } from "@/components/Sidebar/Sidebar";
 import { Stage } from "@/components/Stage";
 import { TaskCommentsDrawer } from "@/components/TaskCommentsDrawer";
@@ -204,6 +205,18 @@ function WorkspaceShell() {
   }
 
   if (!session?.user) {
+    const publicProjectId =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("project")
+        : null;
+    if (publicProjectId) {
+      return (
+        <>
+          <IconSprite />
+          <PublicProjectView projectId={publicProjectId} />
+        </>
+      );
+    }
     return (
       <>
         <IconSprite />
