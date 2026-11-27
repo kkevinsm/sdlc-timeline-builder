@@ -4,7 +4,8 @@ import React, { useMemo, useState } from "react";
 import { Icon } from "@/components/IconSprite";
 import { SLIDE_STYLE_DEFS, type ExportOptions } from "@/constants/styles";
 import { buildTimelineModel } from "@/engine/layoutModel";
-import { exportTimelineToPng } from "@/export/pngExporter";
+import { exportProjectToCsv } from "@/export/csvExporter";
+import { exportTimelineToPdf, exportTimelineToPng } from "@/export/pngExporter";
 import { exportProjectToPptx } from "@/export/pptxExporter";
 import { useTimeline } from "@/store/useTimelineStore";
 import type { SlideStyleId } from "@/types/timeline";
@@ -128,6 +129,49 @@ function ExportModalInner() {
     });
     showNotice(
       lang === "en" ? "PNG downloaded!" : "Gambar PNG berhasil diunduh!"
+    );
+  };
+
+  const handleExportPdf = () => {
+    const ok = exportTimelineToPdf(
+      activeModel,
+      expLang,
+      activePage.title || project.name || "Timeline",
+      {
+        showDuration,
+        showStatus,
+        showOwner,
+        showDeps,
+        showToday,
+        showLegend,
+        showRail,
+      }
+    );
+    if (!ok) {
+      showNotice(
+        lang === "en"
+          ? "Allow pop-ups to print/save PDF."
+          : "Izinkan pop-up browser untuk mencetak/simpan PDF."
+      );
+    }
+  };
+
+  const handleExportCsv = () => {
+    const safeName = (project.name || activePage.title || "timeline")
+      .toLowerCase()
+      .replace(/[^a-z0-9-_]+/g, "-");
+    exportProjectToCsv(
+      project,
+      selectedPageIds.length > 0
+        ? selectedPageIds
+        : project.pages.map((p) => p.id),
+      expLang,
+      `${safeName}.csv`
+    );
+    showNotice(
+      lang === "en"
+        ? "CSV (Excel) downloaded!"
+        : "File CSV (Excel) berhasil diunduh!"
     );
   };
 
@@ -290,10 +334,20 @@ function ExportModalInner() {
 
         {/* Footer */}
         <div className="px-5 py-3.5 border-t border-[var(--line)] bg-[#F7FAF8] flex items-center justify-between gap-2 flex-wrap">
-          <button type="button" className="btn" onClick={handleExportPng}>
-            <Icon name="image" />
-            <span>{lang === "en" ? "Download PNG" : "Unduh PNG"}</span>
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button type="button" className="btn" onClick={handleExportPng}>
+              <Icon name="image" />
+              <span>{lang === "en" ? "PNG" : "PNG"}</span>
+            </button>
+            <button type="button" className="btn" onClick={handleExportPdf}>
+              <Icon name="present" />
+              <span>PDF</span>
+            </button>
+            <button type="button" className="btn" onClick={handleExportCsv}>
+              <Icon name="download" />
+              <span>CSV (Excel)</span>
+            </button>
+          </div>
 
           <div className="flex items-center gap-2">
             <button type="button" className="btn" onClick={closeModal}>

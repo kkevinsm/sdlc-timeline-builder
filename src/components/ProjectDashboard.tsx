@@ -8,6 +8,7 @@ import {
   deleteCloudProject,
   listCloudProjects,
   loadCloudProject,
+  saveCloudProject,
   type CloudProjectMeta,
 } from "@/lib/authClient";
 import { useTimeline } from "@/store/useTimelineStore";
@@ -177,6 +178,45 @@ export function ProjectDashboard() {
       showNotice(lang === "en" ? "Link copied!" : "Link disalin!");
     } catch {
       showNotice(link);
+    }
+  };
+
+  const handleDuplicate = async (item: CloudProjectMeta) => {
+    setMenuOpenId(null);
+    setBusyId(item.id);
+    try {
+      const loaded = await loadCloudProject(item.id);
+      const copySuffix = lang === "en" ? " (Copy)" : " (Salinan)";
+      const clonedName = `${loaded.name || item.name}${copySuffix}`.slice(0, 120);
+      const clonedData = {
+        ...loaded.data,
+        name: clonedName,
+        pages: loaded.data.pages.map((p, idx) =>
+          idx === 0 ? { ...p, title: clonedName } : p
+        ),
+      };
+      const saved = await saveCloudProject(null, clonedData);
+      setItems((prev) => [
+        {
+          id: saved.id,
+          name: saved.name,
+          workspaceId: saved.workspaceId ?? null,
+          role: "owner",
+          version: saved.version,
+          createdAt: saved.updatedAt,
+          updatedAt: saved.updatedAt,
+        },
+        ...prev,
+      ]);
+      showNotice(
+        lang === "en" ? "Timeline duplicated!" : "Timeline berhasil diduplikasi!"
+      );
+    } catch {
+      showNotice(
+        lang === "en" ? "Failed to duplicate timeline." : "Gagal menduplikasi timeline."
+      );
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -535,6 +575,13 @@ export function ProjectDashboard() {
                               </button>
                               {menuOpenId === item.id && (
                                 <div className="absolute right-0 top-[calc(100%+4px)] w-44 bg-white rounded-xl shadow-xl border border-[var(--line)] p-1.5 z-50">
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleDuplicate(item)}
+                                    className="w-full text-left px-3 py-1.5 rounded-lg text-[12.5px] font-semibold hover:bg-[var(--brand-50)]"
+                                  >
+                                    {lang === "en" ? "Duplicate" : "Duplikat"}
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => void handleCopyLink(item.id)}

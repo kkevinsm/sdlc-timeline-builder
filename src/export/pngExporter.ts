@@ -18,12 +18,11 @@ export interface PngExportOptions {
  * Renders the active TimelineModel onto an offscreen HiDPI (2x) HTML5 Canvas
  * and downloads a crisp PNG image without external dependencies.
  */
-export function exportTimelineToPng(
+export function renderTimelineToDataUrl(
   model: TimelineModel,
   lang: LangCode,
-  fileName = "timeline.png",
   opts: PngExportOptions = {}
-): void {
+): string {
   const { page, cols, monthGroups, colW, visibleRows, tu } = model;
   const showDuration = opts.showDuration ?? true;
   const showStatus = opts.showStatus ?? true;
@@ -68,7 +67,7 @@ export function exportTimelineToPng(
   canvas.width = totalW * scale;
   canvas.height = totalH * scale;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+  if (!ctx) return "";
 
   ctx.scale(scale, scale);
   ctx.fillStyle = "#FFFFFF";
@@ -496,8 +495,55 @@ export function exportTimelineToPng(
   ctx.strokeStyle = "#D8E0DB";
   ctx.strokeRect(padX, tableTop, fixedW + gridW, tableHeaderH + bodyH);
 
+  return canvas.toDataURL("image/png");
+}
+
+export function exportTimelineToPng(
+  model: TimelineModel,
+  lang: LangCode,
+  fileName = "timeline.png",
+  opts: PngExportOptions = {}
+): void {
+  const dataUrl = renderTimelineToDataUrl(model, lang, opts);
+  if (!dataUrl) return;
   const link = document.createElement("a");
   link.download = fileName;
-  link.href = canvas.toDataURL("image/png");
+  link.href = dataUrl;
   link.click();
+}
+
+export function exportTimelineToPdf(
+  model: TimelineModel,
+  lang: LangCode,
+  title = "Timeline",
+  opts: PngExportOptions = {}
+): boolean {
+  const dataUrl = renderTimelineToDataUrl(model, lang, opts);
+  if (!dataUrl) return false;
+  const win = window.open("", "_blank", "width=1200,height=800");
+  if (!win) return false;
+  const safeTitle = title.replace(/[<>&"]/g, "");
+  win.document.write(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${safeTitle}</title>
+  <style>
+    @page { size: landscape; margin: 8mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; background: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    img { max-width: 100%; max-height: 100vh; width: auto; height: auto; display: block; }
+  </style>
+</head>
+<body>
+  <img src="${dataUrl}" alt="${safeTitle}" />
+  <script>
+    window.onload = function () {
+      setTimeout(function () { window.focus(); window.print(); }, 150);
+    };
+  </script>
+</body>
+</html>`);
+  win.document.close();
+  return true;
 }

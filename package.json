@@ -10,7 +10,8 @@
     "db:local:migrate": "npx -y wrangler@latest d1 execute sdlc-timeline-db --local --file=./migrations/002_project_sharing.sql && npx -y wrangler@latest d1 execute sdlc-timeline-db --local --file=./migrations/003_project_changes.sql",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --import ./scripts/register-alias.mjs --test src/engine/*.test.ts"
   },
   "browserslist": [
     "> 0.5%",
