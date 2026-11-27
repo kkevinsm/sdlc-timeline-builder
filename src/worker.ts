@@ -166,6 +166,12 @@ function createAuth(env: Env, origin: string) {
         ? ["http://tlb.web.id"]
         : []),
     ],
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ["google"],
+      },
+    },
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 8,
@@ -616,6 +622,12 @@ async function handleWorkspaceRoutes(
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.hostname === "www.tlb.web.id") {
+      url.hostname = "tlb.web.id";
+      url.protocol = "https:";
+      return Response.redirect(url.toString(), 301);
+    }
 
     if (url.pathname === "/api/health") {
       return jsonRes({
